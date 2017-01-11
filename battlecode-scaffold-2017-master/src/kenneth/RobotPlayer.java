@@ -52,7 +52,7 @@ public strictfp class RobotPlayer {
 				Direction dir = randomDirection();
 
 				// Randomly attempt to build a gardener in this direction
-				if (rc.canHireGardener(dir)) {
+				if (rc.canHireGardener(dir)&&rc.getTeamBullets()>=200) {
 					System.out.println("HIRED A GARDENER ");
 					rc.hireGardener(dir);
 				}
@@ -88,6 +88,9 @@ public strictfp class RobotPlayer {
 			// Try/catch blocks stop unhandled exceptions, which cause your
 			// robot to explode
 			try {
+				
+				//Gardeners, by occupation, must always sense nearby trees
+				TreeInfo[] nearby = rc.senseNearbyTrees((float) 50.0, myTeam);
 
 				// This block is for moving the gardener to a random distance
 				// from the archon
@@ -110,8 +113,7 @@ public strictfp class RobotPlayer {
 					}
 
 					// Move toward other friendly trees
-					TreeInfo[] nearby = rc.senseNearbyTrees((float) 50.0, myTeam);
-					if (nearby != null) {
+					if (nearby.length > 0) {
 						for (TreeInfo ti : nearby) {
 							if (rc.canInteractWithTree(ti.getLocation())) {
 								System.out.println("I HAVE FOUND MY PLACE");
@@ -119,7 +121,7 @@ public strictfp class RobotPlayer {
 							} else {
 								dir = rc.getLocation().directionTo(ti.getLocation())
 										.rotateLeftDegrees((float) (Math.random() - 0.5) * 10);
-								rc.move(dir,1);
+								rc.move(dir, 1);
 							}
 						}
 					} else {
@@ -130,6 +132,41 @@ public strictfp class RobotPlayer {
 						}
 					}
 				}
+				
+				//LET'S WATER THOSE PLANTS
+				
+				for(TreeInfo ti:nearby){
+					if(rc.canWater(ti.getLocation())&&ti.getMaxHealth()-ti.getHealth()>=5){
+						rc.water(ti.getLocation());
+					}
+				}
+
+				// LET'S BUILD A WALL BOYS (and girls)
+				
+				Direction dir;
+				if (inPlace) {
+					for (TreeInfo ti : nearby) {
+						
+						//If next to tree...
+						if(rc.getLocation().distanceTo(ti.getLocation())<=2){
+							
+							//...PLANT TREE NEXT TO IT
+							dir = rc.getLocation().directionTo(ti.getLocation()).rotateRightDegrees(60);
+							if(rc.canPlantTree(dir)){
+								rc.plantTree(dir);
+							}else{
+								dir = dir.rotateLeftDegrees(120);
+								if(rc.canPlantTree(dir)){
+									rc.plantTree(dir);
+								}
+							}
+							
+						}
+					}
+				}
+				
+				//Let's hire some soldiers
+				//TODO make decisions on what soldiers to hire
 
 				// Clock.yield() makes the robot wait until the next turn, then
 				// it will perform this loop again
