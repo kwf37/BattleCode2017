@@ -110,7 +110,7 @@ public strictfp class RobotPlayer {
                 }
                 
                 //Try planting a tree, else wander
-                if (!tryPlantTree(randomDirection(), 45, 4) && !rc.hasMoved()) 
+                if (!tryPlantTree(new Direction(0), 60, 3) && !rc.hasMoved()) 
                 	wander();
                 
                 // Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
