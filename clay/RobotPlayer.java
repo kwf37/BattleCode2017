@@ -1,4 +1,4 @@
-package clay;
+package examplefuncsplayer;
 import battlecode.common.*;
 
 public strictfp class RobotPlayer {
@@ -17,6 +17,7 @@ public strictfp class RobotPlayer {
 
         // Here, we've separated the controls into a different method for each RobotType.
         // You can add the missing ones or rewrite this into your own control structure.
+        
         switch (rc.getType()) {
             case ARCHON:
                 runArchon();
@@ -30,18 +31,22 @@ public strictfp class RobotPlayer {
             case LUMBERJACK:
                 runLumberjack();
                 break;
+            case SCOUT:
+            	runScout();
+            	break;
         }
 	}
+    static void runScout() throws GameActionException{
+    	
+    }
 
     static void runArchon() throws GameActionException {
         System.out.println("I'm an archon!");
-
         // The code you want your robot to perform every round should be in this loop
         while (true) {
-
+        	
             // Try/catch blocks stop unhandled exceptions, which cause your robot to explode
             try {
-
                 // Generate a random direction
                 Direction dir = randomDirection();
 
@@ -57,6 +62,8 @@ public strictfp class RobotPlayer {
                 MapLocation myLocation = rc.getLocation();
                 rc.broadcast(0,(int)myLocation.x);
                 rc.broadcast(1,(int)myLocation.y);
+               
+                
 
                 // Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
                 Clock.yield();
@@ -81,17 +88,24 @@ public strictfp class RobotPlayer {
                 int xPos = rc.readBroadcast(0);
                 int yPos = rc.readBroadcast(1);
                 MapLocation archonLoc = new MapLocation(xPos,yPos);
-
+                
                 // Generate a random direction
                 Direction dir = randomDirection();
 
-                // Randomly attempt to build a soldier or lumberjack in this direction
-                if (rc.canBuildRobot(RobotType.SOLDIER, dir) && Math.random() < .01) {
+                // Randomly attempt to build a soldier or lumberjack or scout in this direction
+                if (rc.canBuildRobot(RobotType.SOLDIER, dir) && rc.isBuildReady()) {
                     rc.buildRobot(RobotType.SOLDIER, dir);
-                } else if (rc.canBuildRobot(RobotType.LUMBERJACK, dir) && Math.random() < .01 && rc.isBuildReady()) {
+                } else if (rc.canBuildRobot(RobotType.LUMBERJACK, dir) && rc.isBuildReady()) {
                     rc.buildRobot(RobotType.LUMBERJACK, dir);
+                } else if (rc.canBuildRobot(RobotType.SCOUT, dir) && rc.isBuildReady()) {
+                	rc.buildRobot(RobotType.SCOUT, dir);
                 }
-
+                //Randomly attempt to plant a tree in this direction
+                Direction randomDir = randomDirection();
+                if (rc.canPlantTree(randomDir)) {
+                	rc.plantTree(randomDir);
+                }
+                
                 // Move randomly
                 tryMove(randomDirection());
 
@@ -104,7 +118,6 @@ public strictfp class RobotPlayer {
             }
         }
     }
-
     static void runSoldier() throws GameActionException {
         System.out.println("I'm an soldier!");
         Team enemy = rc.getTeam().opponent();
@@ -118,18 +131,28 @@ public strictfp class RobotPlayer {
 
                 // See if there are any nearby enemy robots
                 RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
+             // Try to move to a preexisting broadcast location, otherwise move randomly
+                if (rc.canMove(rc.getLocation().directionTo(new MapLocation(rc.readBroadcast(2),rc.readBroadcast(3))))){
+                	rc.move(rc.getLocation().directionTo(new MapLocation(rc.readBroadcast(2),rc.readBroadcast(3))));
+                } else
+                	tryMove(randomDirection());
 
                 // If there are some...
                 if (robots.length > 0) {
+                	//Broadcast your location for other soldiers to go to
+                	rc.broadcast(2, (int)myLocation.x);
+                	rc.broadcast(3, (int)myLocation.y);
                     // And we have enough bullets, and haven't attacked yet this turn...
                     if (rc.canFireSingleShot()) {
                         // ...Then fire a bullet in the direction of the enemy.
-                        rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
+                        System.out.println("lol");
+                    	rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
                     }
                 }
+                
 
-                // Move randomly
-                tryMove(randomDirection());
+                // Try to move to a broadcast location, otherwise move randomly
+
 
                 // Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
                 Clock.yield();
