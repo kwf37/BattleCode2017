@@ -132,20 +132,19 @@ public strictfp class RobotPlayer {
 				}
 
 				// Start planting if settled by using inital enemy archon loc
+				Direction dir = rc.getLocation().directionTo(enemy[0]);
 				if (settled){
-					tryPlantTree(rc.getLocation().directionTo(enemy[0]).opposite(), 60, 2);
+					tryPlantTree(dir.opposite(), 60, 2);
 				}
 
 				// Always try to water
 				tryWaterTree();
 
-				// Randomly attempt to build a soldier or lumberjack in this direction
+				// Attempt to build a soldier or lumberjack in this direction
 				if (settled){
-					Direction dir = rc.getLocation().directionTo(enemy[0]);
-					if (rc.canBuildRobot(RobotType.SOLDIER, dir) && Math.random() < .5 && rc.isBuildReady()) {
+					hireLumberjacks(dir);
+					if (rc.canBuildRobot(RobotType.SOLDIER, dir) && rc.isBuildReady()) {
 						rc.buildRobot(RobotType.SOLDIER, dir);
-					} else if (rc.canBuildRobot(RobotType.LUMBERJACK, dir) && rc.isBuildReady()) {
-						rc.buildRobot(RobotType.LUMBERJACK, dir);
 					}
 				}
 
@@ -444,6 +443,19 @@ public strictfp class RobotPlayer {
 		if (rc.getHealth() <= maxHP * (0.01) ) {
 			int prevNumBots = rc.readBroadcast(channel);
 			rc.broadcast(channel, prevNumBots - 1);
+		}
+	}
+	
+	/**
+	 * Hires lumberjacks when there are nearby neutral trees
+	 * 
+	 * @throws GameActionException
+	 */
+	static void hireLumberjacks(Direction dir) throws GameActionException {
+		TreeInfo[] nearby = rc.senseNearbyTrees(-1, Team.NEUTRAL);
+		if (nearby.length > 0) {
+			if (rc.canBuildRobot(RobotType.LUMBERJACK, dir) && rc.isBuildReady())
+				rc.buildRobot(RobotType.LUMBERJACK, dir);
 		}
 	}
 }
