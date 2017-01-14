@@ -1,17 +1,24 @@
-package glenna;
+package glennabott;
 import battlecode.common.*;
 
 public strictfp class RobotPlayer {
 	static RobotController rc;
 
 	//Channels
-	static int GARDENER_CHANNEL = 3;
+		static int GARDENER_CHANNEL = 3;
+		static int XCOORDENEMY = 2;
+		static int YCOORDENEMY=4;
+		static int SHOULDCOME = 5;
+		//Max number of bots
+		static int GARDENER_MAX = 10;
 
-	//Max number of bots
-	static int GARDENER_MAX = 20;
-
-	//Max HP of bots
-	static float GARDENER_MAX_HP = 100;
+		//Max HP of bots
+		static float GARDENER_MAX_HP = 100;
+		
+		static int ROUND = 0;
+		
+		static int COME = 1;
+		static int DONTCOME = 0;
 
 	/**
 	 * run() is the method that is called when a robot is instantiated in the Battlecode world.
@@ -39,9 +46,50 @@ public strictfp class RobotPlayer {
 		case LUMBERJACK:
 			runLumberjack();
 			break;
+		case SCOUT:
+			runScout();
+			break;
+		case TANK:
+			runTank();
+			break;
 		}
 	}
-
+	static void runScout() throws GameActionException {
+		System.out.println("I'm a scout!");
+		Direction dir = rc.getLocation().directionTo(rc.getInitialArchonLocations(rc.getTeam().opponent())[0]);
+    	while (true) {
+    		try {
+    			if(rc.canMove(dir)) {
+    				rc.move(dir);
+    			} else {
+    				dir = dir.rotateRightDegrees((float)(Math.random()*180));
+    				tryMove(dir);
+    			}
+    			 Team enemy = rc.getTeam().opponent();
+                 RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
+                 if (robots.length > 0) {
+                 	//Broadcast your location for other soldiers to go to
+                 	rc.broadcast(XCOORDENEMY, (int)robots[0].getLocation().x);
+                 	rc.broadcast(YCOORDENEMY, (int)robots[0].getLocation().y);
+                 	rc.broadcast(5, COME);
+                 	if (rc.canFireSingleShot()) {
+                        // ...Then fire a bullet in the direction of the enemy.
+                        System.out.println("lol");
+                    	rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
+                    }
+                 }else {
+                	 rc.broadcast(5, DONTCOME);
+                 }
+                 Clock.yield();
+    		} catch (Exception e) {
+                System.out.println("Scout Exception");
+                e.printStackTrace();
+            }
+    	}
+	}
+	static void runTank() throws GameActionException {
+		
+	}
 	static void runArchon() throws GameActionException {
 		System.out.println("I'm an archon!");
 
@@ -70,7 +118,7 @@ public strictfp class RobotPlayer {
 				rc.broadcast(1,(int)myLocation.y);
 
 				//Donate bullets, see if can win
-				if (rc.getTeamBullets() >= 1000) rc.donate(100);
+				if (rc.getTeamBullets() >= 500) rc.donate(100);
 				canWin();
 
 				// Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
@@ -144,9 +192,7 @@ public strictfp class RobotPlayer {
 				// Attempt to build a soldier or lumberjack in this direction
 				if (settled){
 					hireLumberjacks(dir);
-					if (rc.canBuildRobot(RobotType.SOLDIER, dir) && rc.isBuildReady()) {
-						rc.buildRobot(RobotType.SOLDIER, dir);
-					}
+					produceRandom(dir);
 				}
 
 				// Broadcast if near death
@@ -164,44 +210,67 @@ public strictfp class RobotPlayer {
 
 	static void runSoldier() throws GameActionException {
 		System.out.println("I'm an soldier!");
-		Team enemy = rc.getTeam().opponent();
+        Team enemy = rc.getTeam().opponent();
+        Direction dir = new Direction(0);
+        // The code you want your robot to perform every round should be in this loop
+        while (true) {
 
-		// The code you want your robot to perform every round should be in this loop
-		while (true) {
+            // Try/catch blocks stop unhandled exceptions, which cause your robot to explode
+            try {
+            	System.out.println(rc.readBroadcast(5));
+                MapLocation myLocation = rc.getLocation();
 
-			// Try/catch blocks stop unhandled exceptions, which cause your robot to explode
-			try {
-				MapLocation myLocation = rc.getLocation();
+                // See if there are any nearby enemy robots
+                RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
+                MapLocation broadcastLocation = null;
+                // If there are some...
+                if (robots.length > 0) {
+                	//Broadcast your location for other soldiers to go to
+                	rc.broadcast(XCOORDENEMY, (int)robots[0].getLocation().x);
+                	rc.broadcast(YCOORDENEMY, (int)robots[0].getLocation().y);
+                	rc.broadcast(5, COME);
+                    // And we have enough bullets, and haven't attacked yet this turn...
+                    if (rc.canFireSingleShot()) {
+                        // ...Then fire a bullet in the direction of the enemy.
+                        System.out.println("lol");
+                    	rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
+                    }
+                }else {
+                   	 rc.broadcast(5, DONTCOME);
+                }
+                broadcastLocation = new MapLocation(rc.readBroadcast(XCOORDENEMY),rc.readBroadcast(YCOORDENEMY));
+             // Try to move to a preexisting broadcast location, otherwise move randomly
+                if (rc.readBroadcast(5)==DONTCOME){
+                	if(!tryMove(dir)) {
+                		dir = dir.rotateRightDegrees((float)(Math.random()*180));
+                		tryMove(dir);
+                	}
+                } else {
+                	goToDirectAvoidCollision(broadcastLocation);
+                }
+                
+                System.out.println(rc.readBroadcast(XCOORDENEMY));
+                
+               
+                
 
-				// See if there are any nearby enemy robots
-				RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
+                // Try to move to a broadcast location, otherwise move randomly
 
-				// If there are some...
-				if (robots.length > 0) {
-					// And we have enough bullets, and haven't attacked yet this turn...
-					if (rc.canFireSingleShot()) {
-						// ...Then fire a bullet in the direction of the enemy.
-						rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
-					}
-				}
 
-				// Move randomly
-				tryMove(randomDirection());
+                // Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
+                Clock.yield();
 
-				// Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
-				Clock.yield();
-
-			} catch (Exception e) {
-				System.out.println("Soldier Exception");
-				e.printStackTrace();
-			}
-		}
+            } catch (Exception e) {
+                System.out.println("Soldier Exception");
+                e.printStackTrace();
+            }
+        }
 	}
 
 	static void runLumberjack() throws GameActionException {
 		System.out.println("I'm a lumberjack!");
 		Team enemy = rc.getTeam().opponent();
-
+		Direction dir = new Direction(0);
 		// The code you want your robot to perform every round should be in this loop
 		while (true) {
 
@@ -236,7 +305,10 @@ public strictfp class RobotPlayer {
 				
 				if(!rc.hasAttacked() && !rc.hasMoved())
 					// Move Randomly
-					tryMove(randomDirection());
+					if(!tryMove(dir)) {
+                		dir = dir.rotateRightDegrees((float)(Math.random()*180));
+                		tryMove(dir);
+                	}
 
 
 
@@ -414,7 +486,7 @@ public strictfp class RobotPlayer {
 	static boolean tryWaterTree() throws GameActionException{
 		TreeInfo[] trees = rc.senseNearbyTrees(-1, rc.getTeam());
 		for (TreeInfo t : trees){
-			if (rc.canWater(t.getID()) && t.getHealth() < 30){
+			if (rc.canWater(t.getID()) && t.getHealth() < 45){
 				rc.water(t.getID());
 				System.out.println("watered!");
 				return true;
@@ -474,4 +546,53 @@ public strictfp class RobotPlayer {
 		} else
 			return false;
 	}
+    static void goToDirectAvoidCollision(MapLocation dest) throws GameActionException{
+    	tryMove(rc.getLocation().directionTo(dest),10,90);
+    }
+    static void goToDirectAvoidCollision(float x, float y) throws GameActionException {
+    	MapLocation dest = new MapLocation(x,y);
+    	goToDirectAvoidCollision(dest);
+    }
+    static boolean tryBuildRobot(RobotType robo) throws GameActionException {
+    	// First, try intended direction
+    	Direction dir = new Direction(0);
+    			if (rc.canBuildRobot(robo, dir)) {
+    				rc.buildRobot(robo, dir);
+    				return true;
+    			}
+
+    			// Now try a bunch of similar angles
+    			int currentCheck = 1;
+    			int checksPerSide = 12;
+    			int degreeOffset = 30;
+    			while(currentCheck<=checksPerSide) {
+    				// Try the offset of the left side
+    				if(rc.canBuildRobot(robo,dir.rotateLeftDegrees(degreeOffset*currentCheck))) {
+    					rc.buildRobot(robo,dir.rotateLeftDegrees(degreeOffset*currentCheck));
+    					return true;
+    				}
+    				// Try the offset on the right side
+    				if(rc.canBuildRobot(robo,dir.rotateRightDegrees(degreeOffset*currentCheck))) {
+    					rc.buildRobot(robo,dir.rotateRightDegrees(degreeOffset*currentCheck));
+    					return true;
+    				}
+    				// No move performed, try slightly further
+    				currentCheck++;
+    			}
+				return false;
+				
+    }
+    static void produceRandom(Direction dir) throws GameActionException {
+		int choose = (int) Math.random() * 99;
+
+		if (choose < 25 && rc.canBuildRobot(RobotType.SCOUT, dir))
+			tryBuildRobot(RobotType.SCOUT);
+		else if (choose < 50 && rc.canBuildRobot(RobotType.SOLDIER, dir))
+			tryBuildRobot(RobotType.SOLDIER);
+		else if (choose < 75 && rc.canBuildRobot(RobotType.LUMBERJACK, dir))
+			tryBuildRobot(RobotType.LUMBERJACK);
+		else if (rc.canBuildRobot(RobotType.TANK, dir)) {
+			tryBuildRobot(RobotType.TANK);
+		}
+    }
 }
