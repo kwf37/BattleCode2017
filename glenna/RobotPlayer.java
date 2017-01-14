@@ -475,8 +475,7 @@ public strictfp class RobotPlayer {
 					return endLoc;
 				}
 			}
-			dir = dir.rotateLeftDegrees(
-			);
+			dir = dir.rotateLeftDegrees(45);
 			checks++;
 		}
 		return null;
