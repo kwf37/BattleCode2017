@@ -69,8 +69,9 @@ public strictfp class RobotPlayer {
 				rc.broadcast(0,(int)myLocation.x);
 				rc.broadcast(1,(int)myLocation.y);
 
-				//Donate bullets
-				if (rc.getTeamBullets() >= 10000) rc.donate(10000);
+				//Donate bullets, see if can win
+				if (rc.getTeamBullets() >= 1000) rc.donate(100);
+				canWin();
 
 				// Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
 				Clock.yield();
@@ -287,7 +288,6 @@ public strictfp class RobotPlayer {
 		}
 
 		// Now try a bunch of similar angles
-		boolean moved = false;
 		int currentCheck = 1;
 
 		while(currentCheck<=checksPerSide) {
@@ -457,5 +457,21 @@ public strictfp class RobotPlayer {
 			if (rc.canBuildRobot(RobotType.LUMBERJACK, dir) && rc.isBuildReady())
 				rc.buildRobot(RobotType.LUMBERJACK, dir);
 		}
+	}
+	
+	/**
+	 * Returns true and immediately donates all bullets if we can win in that
+	 * turn. Returns false otherwise
+	 * 
+	 * @return
+	 * @throws GameActionException
+	 */
+	static boolean canWin() throws GameActionException {
+		float difference = 1000 - rc.getTeamVictoryPoints();
+		if ((rc.getTeamBullets() / 10) >= difference) {
+			rc.donate(rc.getTeamBullets());
+			return true;
+		} else
+			return false;
 	}
 }
