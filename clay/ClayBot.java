@@ -39,18 +39,21 @@ public strictfp class RobotPlayer {
             	break;
         }
 	}
+    /*
+     * Broadcast Channels
+     * 0,1 Archon Location
+     * 2,3 Enemy Location
+     * 4 Gardener Count
+     * 5 Soldier Count
+     * 6 Scout Count
+     */
     static Direction dir = randomDirection();
     static int i = 1;
     
     static void runTank() throws GameActionException {
     	while (true) {
     		try {
-    			if(rc.canMove(dir)) {
-    				rc.move(dir);
-    			} else {
-    				dir = dir.rotateRightDegrees(90);
-    				tryMove(dir);
-    			}
+    			 tryMove(rc.getLocation().directionTo(new MapLocation(rc.readBroadcast(2),rc.readBroadcast(3))));
     			 Team enemy = rc.getTeam().opponent();
                  RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
                  if (robots.length > 0) {
@@ -77,7 +80,7 @@ public strictfp class RobotPlayer {
     			if(rc.canMove(dir)) {
     				rc.move(dir);
     			} else {
-    				dir = dir.rotateRightDegrees(90);
+    				dir = dir.rotateRightDegrees(120);
     				tryMove(dir);
     			}
     			 Team enemy = rc.getTeam().opponent();
@@ -120,9 +123,11 @@ public strictfp class RobotPlayer {
                 	rc.broadcast(3, (int)robots[0].getLocation().y);
                 }
                 // Randomly attempt to build a gardener in this direction
-                if (i%200 ==0 && rc.canHireGardener(dir)) {
+                if (rc.readBroadcast(4) < 10 && rc.canHireGardener(dir)) {
                     rc.hireGardener(dir);
                 }
+                rc.broadcast(4, 0);
+                
 
                 // Move randomly
                 tryMove(randomDirection());
@@ -145,14 +150,47 @@ public strictfp class RobotPlayer {
     }
 
 	static void runGardener() throws GameActionException {
+		int turnCount = 0;
 		int spawnCounter = 0;
         System.out.println("I'm a gardener!");
         int surroundingTreeCount = 0;
         Team enemy = rc.getTeam().opponent();
+        boolean settledDown = false;
         Direction initialEnemyArchonLoc = (rc.getLocation().directionTo(rc.getInitialArchonLocations(enemy)[0]));
         // The code you want your robot to perform every round should be in this loop
         while (true) { 
         	try {
+        		rc.broadcast(4, rc.readBroadcast(4)+1);
+        		if(turnCount > 5) {
+	        		if (!rc.isCircleOccupiedExceptByThisRobot(rc.getLocation(), 4)) {
+	        			//settle down
+	        			settledDown = true;
+	        		}
+        		}
+        		if (settledDown == false) {
+        			if (!tryMove(initialEnemyArchonLoc)) {
+	        			initialEnemyArchonLoc = initialEnemyArchonLoc.rotateRightDegrees(120);
+	        			tryMove(initialEnemyArchonLoc);
+	        			tryBuildRobot(RobotType.LUMBERJACK,);
+	        		}
+        		}
+        		if (settledDown == true) {
+        			tryPlantTree(new Direction (0) , 60, 2);
+        		}
+        		 Direction randomDir = randomDirection();
+                 tryWaterTree();
+                 
+        		
+        		
+        		
+        		
+        		
+        		
+        		
+        		
+        		
+        		
+        		
         		/*if (!tryWaterTree() && i%4==1){
         			TreeInfo[] trees = rc.senseNearbyTrees(-1, rc.getTeam());
         			if (trees.length != 0){
@@ -167,16 +205,12 @@ public strictfp class RobotPlayer {
         					}
         				}*/
                 //Randomly attempt to plant a tree in this direction
-        		if (surroundingTreeCount < 5 && rc.canPlantTree(initialEnemyArchonLoc.rotateRightDegrees(60))) {
-        			initialEnemyArchonLoc=initialEnemyArchonLoc.rotateRightDegrees(60);
-        			rc.plantTree(initialEnemyArchonLoc);
-        			surroundingTreeCount++;
+        		/*if (settledDown == false) {
+        			settledDown = settleDown(surroundingTreeCount, initialEnemyArchonLoc, initialEnemyArchonLoc); 
         		}
 
                 Direction randomDir = randomDirection();
-        			if(!tryWaterTree() && rc.getTeamBullets() > 150 && rc.canPlantTree(randomDir)) {
-/*        				rc.plantTree(randomDir);*/
-        			}
+                tryWaterTree();*/
 /*        			if (rc.canMove(dir)) {
         			rc.move(dir);
         		} else {
@@ -188,16 +222,16 @@ public strictfp class RobotPlayer {
             // Try/catch blocks stop unhandled exceptions, which cause your robot to explode
             		if (rc.getTeamBullets()>300 && rc.isBuildReady()) {
             			if (spawnCounter%8==0 | spawnCounter%8==1) {
-            				tryBuildRobot(RobotType.LUMBERJACK, dir, 20, 6);
+            				tryBuildRobot(RobotType.LUMBERJACK, new Direction((float) Math.PI), 20, 6);
             			}
             			if (spawnCounter%8==2) {
-            				tryBuildRobot(RobotType.TANK, dir, 20, 6);
+            				tryBuildRobot(RobotType.TANK, new Direction((float) Math.PI), 20, 6);
             			}
             			if (spawnCounter%8== 3 | spawnCounter%8==4|spawnCounter%8==5) {
-            				tryBuildRobot(RobotType.SOLDIER, dir, 20, 6);
+            				tryBuildRobot(RobotType.SOLDIER, new Direction((float) Math.PI), 20, 6);
             			}
             			if (spawnCounter%8==6|spawnCounter%8==7) {
-            				tryBuildRobot(RobotType.SCOUT, dir, 20, 6);
+            				tryBuildRobot(RobotType.SCOUT, new Direction((float) Math.PI), 20, 6);
             			}
             		}
             	 // Randomly attempt to build a soldier or lumberjack or scout in this direction
@@ -218,8 +252,8 @@ public strictfp class RobotPlayer {
                 int xPos = rc.readBroadcast(0);
                 int yPos = rc.readBroadcast(1);
                 MapLocation archonLoc = new MapLocation(xPos,yPos);
-                
                 spawnCounter++;
+                turnCount++;
 
                 
 
@@ -247,8 +281,18 @@ public strictfp class RobotPlayer {
                 // See if there are any nearby enemy robots
                 RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
              // Try to move to a preexisting broadcast location, otherwise move randomly
-                tryMove(rc.getLocation().directionTo(new MapLocation(rc.readBroadcast(2),rc.readBroadcast(3))));
-
+                if (!!(rc.readBroadcast(2) == 0 && rc.readBroadcast(3) ==0)){
+                	tryMove(rc.getLocation().directionTo(new MapLocation(rc.readBroadcast(2),rc.readBroadcast(3))));
+                } else {
+                	if(rc.canMove(dir)) {
+        				rc.move(dir);
+        			} else {
+        				dir = dir.rotateRightDegrees(120);
+        				tryMove(dir);
+        			}
+                }
+                System.out.println(rc.readBroadcast(2));
+                
                 // If there are some...
                 if (robots.length > 0) {
                 	//Broadcast your location for other soldiers to go to
@@ -260,6 +304,9 @@ public strictfp class RobotPlayer {
                         System.out.println("lol");
                     	rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
                     }
+                }else {
+                   	 rc.broadcast(2, 0);
+                   	 rc.broadcast(3, 0);
                 }
                 
 
@@ -494,5 +541,29 @@ public strictfp class RobotPlayer {
     static boolean tryMoveToLoc(MapLocation loc) throws GameActionException {
     	Direction dir = rc.getLocation().directionTo(loc);
         return tryMove(dir);
+    }
+    static void explore(Direction initialDirection) throws GameActionException {
+    	if(rc.canMove(initialDirection)) {
+			rc.move(initialDirection);
+
+		} else {
+			initialDirection = initialDirection.rotateRightDegrees(120);
+			tryMove(initialDirection);
+
+		}
+    }
+    static boolean surroundWithTrees(int surroundingTreeCount, Direction opening) throws GameActionException {
+		TreeInfo[] trees = rc.senseNearbyTrees();
+		System.out.println(trees.length);
+		return tryPlantTree(new Direction(0), 60, 3);
+		
+    }
+    static boolean settleDown(int surroundingTreeCount, Direction opening, Direction exploreDirection) throws GameActionException{
+    	if (rc.senseNearbyTrees(2).length < 4) {
+    		return !surroundWithTrees(surroundingTreeCount, opening);
+    	} else {
+    		explore(exploreDirection);
+    		return false;
+    	}
     }
 }
