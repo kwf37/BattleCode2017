@@ -7,10 +7,10 @@ public strictfp class RobotPlayer {
 	//Channels
 		static int GARDENER_CHANNEL = 3;
 		static int XCOORDENEMY = 2;
-		static int YCOORDENEMY=4;
+		static int YCOORDENEMY = 4;
 		static int SHOULDCOME = 5;
 		//Max number of bots
-		static int GARDENER_MAX = 10;
+		static int GARDENER_MAX = 20;
 
 		//Max HP of bots
 		static float GARDENER_MAX_HP = 100;
@@ -19,6 +19,7 @@ public strictfp class RobotPlayer {
 		
 		static int COME = 1;
 		static int DONTCOME = 0;
+		static int SETTLERADIUS = 4;
 
 	/**
 	 * run() is the method that is called when a robot is instantiated in the Battlecode world.
@@ -64,6 +65,9 @@ public strictfp class RobotPlayer {
     			} else {
     				dir = dir.rotateRightDegrees((float)(Math.random()*180));
     				tryMove(dir);
+    			}
+    			if(rc.senseNearbyTrees().length>0) {
+    				shakeNearbyTrees();
     			}
     			 Team enemy = rc.getTeam().opponent();
                  RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
@@ -191,7 +195,7 @@ public strictfp class RobotPlayer {
 		MapLocation target = tryFindSpot();
 		boolean settled = false;
 		MapLocation[] enemy= rc.getInitialArchonLocations(rc.getTeam().opponent());
-
+		Direction dir = rc.getLocation().directionTo(rc.getInitialArchonLocations(rc.getTeam().opponent())[0]);
 		// The code you want your robot to perform every round should be in this loop
 		while (true) {
 
@@ -202,8 +206,17 @@ public strictfp class RobotPlayer {
 				int xPos = rc.readBroadcast(0);
 				int yPos = rc.readBroadcast(1);
 				MapLocation archonLoc = new MapLocation(xPos,yPos);   
+				
+				if (settled == false) {
+					if (!tryMove(dir)) {
+						dir = dir.rotateRightDegrees((float)(Math.random()*180));
+						tryMove(dir);
+					}
+					settled = settleDown();
+				} 
+				
 
-				// Try finding a target by wandering around.
+				/*// Try finding a target by wandering around.
 				if (target == null){
 					wander();
 					target = tryFindSpot();
@@ -227,18 +240,18 @@ public strictfp class RobotPlayer {
 					}
 					// Can move to target
 					else rc.move(target);
-				}
+				}*/
 
 				// Settle into the spot if close enough to target
-				if (target != null && (rc.getLocation().equals(target) || 
+/*				if (target != null && (rc.getLocation().equals(target) || 
 						rc.getLocation().isWithinDistance(target, (float) 0.5))) {
 					settled = true;
-				}
+				}*/
 
 				// Start planting if settled by using inital enemy archon loc
-				Direction dir = rc.getLocation().directionTo(enemy[0]);
+				Direction directionToArchon = rc.getLocation().directionTo(enemy[0]);
 				if (settled){
-					tryPlantTree(dir.opposite(), 60, 2);
+					tryPlantTree(directionToArchon.opposite(), 60, 2);
 				}
 
 				// Always try to water
@@ -246,8 +259,10 @@ public strictfp class RobotPlayer {
 
 				// Attempt to build a soldier or lumberjack in this direction
 				if (settled){
-					hireLumberjacks(dir);
-					produceRandom(dir);
+					hireLumberjacks(directionToArchon);
+					if (rc.getTeamBullets() > 100 && rc.senseNearbyRobots().length>0) {
+						produceRandom(directionToArchon);
+					}
 				}
 
 				// Broadcast if near death
@@ -279,20 +294,25 @@ public strictfp class RobotPlayer {
                 RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
                 MapLocation broadcastLocation = null;
                 // If there are some...
-                if (robots.length > 0) {
-                	//Broadcast your location for other soldiers to go to
-                	rc.broadcast(XCOORDENEMY, (int)robots[0].getLocation().x);
-                	rc.broadcast(YCOORDENEMY, (int)robots[0].getLocation().y);
-                	rc.broadcast(5, COME);
-                    // And we have enough bullets, and haven't attacked yet this turn...
-                    if (rc.canFireSingleShot()) {
-                        // ...Then fire a bullet in the direction of the enemy.
-                        System.out.println("lol");
-                    	rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
-                    }
-                }else {
-                   	 rc.broadcast(5, DONTCOME);
+                if (rc.readBroadcast(5) == DONTCOME) {
+	                if (robots.length > 0) {
+	                	//Broadcast your location for other soldiers to go to
+	                	rc.broadcast(XCOORDENEMY, (int)robots[0].getLocation().x);
+	                	rc.broadcast(YCOORDENEMY, (int)robots[0].getLocation().y);
+	                	rc.broadcast(5, COME);
+	                    // And we have enough bullets, and haven't attacked yet this turn...
+	                    if (rc.canFireSingleShot()) {
+	                        // ...Then fire a bullet in the direction of the enemy.
+	                        System.out.println("lol");
+	                    	rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
+	                    }
+	                }
+                } else {
+                	if(robots.length == 0) {
+                		rc.broadcast(5, DONTCOME);
+                	}
                 }
+                
                 broadcastLocation = new MapLocation(rc.readBroadcast(XCOORDENEMY),rc.readBroadcast(YCOORDENEMY));
              // Try to move to a preexisting broadcast location, otherwise move randomly
                 if (rc.readBroadcast(5)==DONTCOME){
@@ -524,7 +544,7 @@ public strictfp class RobotPlayer {
 		while (checks <= 8){
 			MapLocation endLoc = rc.getLocation().add(dir, 1 + rc.getType().sensorRadius - circleRadius);
 			if (rc.onTheMap(endLoc) && !rc.isLocationOccupied(endLoc)){
-				if (!rc.isCircleOccupied(endLoc, 2)) {
+				if (!rc.isCircleOccupiedExceptByThisRobot(endLoc, 2)) {
 					return endLoc;
 				}
 			}
@@ -638,7 +658,7 @@ public strictfp class RobotPlayer {
     }
     static void produceRandom(Direction dir) throws GameActionException {
 		int choose = (int) (Math.random() * 99);
-		if (choose < 25 && rc.canBuildRobot(RobotType.SCOUT, dir))
+		if (choose < 10 && rc.canBuildRobot(RobotType.SCOUT, dir))
 			tryBuildRobot(RobotType.SCOUT, dir);
 		else if (choose < 50 && rc.canBuildRobot(RobotType.SOLDIER, dir))
 			tryBuildRobot(RobotType.SOLDIER, dir);
@@ -647,5 +667,22 @@ public strictfp class RobotPlayer {
 		else if (rc.canBuildRobot(RobotType.TANK, dir)) {
 			tryBuildRobot(RobotType.TANK ,dir);
 		}
+    }
+    static boolean shakeNearbyTrees() throws GameActionException{
+    	TreeInfo[] nearbyTrees = rc.senseNearbyTrees();
+    	
+    	int randomIndex = (int)(Math.random()*nearbyTrees.length);
+    	System.out.println(randomIndex);
+    	for (TreeInfo trees: nearbyTrees) {
+    		if(rc.canShake(trees.getLocation())) {
+    			System.out.println("shaking");
+    			rc.shake(trees.getLocation());
+    			return true;
+    		}
+    	}
+    	return false;
+    }
+    static boolean settleDown() throws GameActionException {
+    	return !rc.isCircleOccupiedExceptByThisRobot(rc.getLocation(), SETTLERADIUS);
     }
 }
