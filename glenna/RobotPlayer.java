@@ -608,9 +608,8 @@ public strictfp class RobotPlayer {
     	MapLocation dest = new MapLocation(x,y);
     	goToDirectAvoidCollision(dest);
     }
-    static boolean tryBuildRobot(RobotType robo) throws GameActionException {
+    static boolean tryBuildRobot(RobotType robo, Direction dir) throws GameActionException {
     	// First, try intended direction
-    	Direction dir = new Direction(0);
     			if (rc.canBuildRobot(robo, dir)) {
     				rc.buildRobot(robo, dir);
     				return true;
@@ -618,8 +617,8 @@ public strictfp class RobotPlayer {
 
     			// Now try a bunch of similar angles
     			int currentCheck = 1;
-    			int checksPerSide = 12;
-    			int degreeOffset = 30;
+    			int checksPerSide = 40;
+    			int degreeOffset = 1;
     			while(currentCheck<=checksPerSide) {
     				// Try the offset of the left side
     				if(rc.canBuildRobot(robo,dir.rotateLeftDegrees(degreeOffset*currentCheck))) {
@@ -638,16 +637,15 @@ public strictfp class RobotPlayer {
 				
     }
     static void produceRandom(Direction dir) throws GameActionException {
-		int choose = (int) Math.random() * 99;
-
+		int choose = (int) (Math.random() * 99);
 		if (choose < 25 && rc.canBuildRobot(RobotType.SCOUT, dir))
-			tryBuildRobot(RobotType.SCOUT);
+			tryBuildRobot(RobotType.SCOUT, dir);
 		else if (choose < 50 && rc.canBuildRobot(RobotType.SOLDIER, dir))
-			tryBuildRobot(RobotType.SOLDIER);
+			tryBuildRobot(RobotType.SOLDIER, dir);
 		else if (choose < 75 && rc.canBuildRobot(RobotType.LUMBERJACK, dir))
-			tryBuildRobot(RobotType.LUMBERJACK);
+			tryBuildRobot(RobotType.LUMBERJACK, dir);
 		else if (rc.canBuildRobot(RobotType.TANK, dir)) {
-			tryBuildRobot(RobotType.TANK);
+			tryBuildRobot(RobotType.TANK ,dir);
 		}
     }
 }
