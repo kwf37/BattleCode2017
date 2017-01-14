@@ -475,7 +475,8 @@ public strictfp class RobotPlayer {
 					return endLoc;
 				}
 			}
-			dir = dir.rotateLeftDegrees(45);
+			dir = dir.rotateLeftDegrees(
+			);
 			checks++;
 		}
 		return null;
@@ -488,7 +489,7 @@ public strictfp class RobotPlayer {
 	static boolean tryWaterTree() throws GameActionException{
 		TreeInfo[] trees = rc.senseNearbyTrees(-1, rc.getTeam());
 		for (TreeInfo t : trees){
-			if (rc.canWater(t.getID()) && t.getHealth() < 50){
+			if (rc.canWater(t.getID()) && t.getHealth() < 45){
 				rc.water(t.getID());
 				System.out.println("watered!");
 				return true;
