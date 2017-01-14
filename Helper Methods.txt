@@ -1,0 +1,130 @@
+// ==========================HELPER METHODS============================
+	/**
+	 * Method that tells robot to strafe around the enemy and shoot at them,
+	 * prioritizing more powerful shots, if possible
+	 * 
+	 * @param enemy
+	 * @throws GameActionException
+	 */
+	static void strafeAndShoot(RobotInfo enemy, ShotType st) throws GameActionException {
+		Direction dir = rc.getLocation().directionTo(enemy.getLocation());
+		if (!tryMove(dir.rotateLeftDegrees(90)))
+			tryMove(dir.rotateRightDegrees(90));
+		switch (st) {
+		case PENTAD:
+			if (rc.canFirePentadShot())
+				rc.firePentadShot(dir);
+			break;
+		case TRIAD:
+			if (rc.canFireTriadShot())
+				rc.fireTriadShot(dir);
+			break;
+		case SINGLE:
+			if (rc.canFireSingleShot())
+				rc.fireSingleShot(rc.getLocation().directionTo(enemy.getLocation()));
+		}
+	}
+
+	/**
+	 * Method that tells robot to charge in and shoot at the enemy, prioritizing
+	 * more powerful shots, if possible
+	 * 
+	 * @param enemy
+	 * @throws GameActionException
+	 */
+	static void chargeAndShoot(RobotInfo enemy, ShotType st) throws GameActionException {
+		Direction dir = rc.getLocation().directionTo(enemy.getLocation());
+		tryMove(dir);
+		switch (st) {
+		case PENTAD:
+			if (rc.canFirePentadShot())
+				rc.firePentadShot(dir);
+			break;
+		case TRIAD:
+			if (rc.canFireTriadShot())
+				rc.fireTriadShot(dir);
+			break;
+		case SINGLE:
+			if (rc.canFireSingleShot())
+				rc.fireSingleShot(rc.getLocation().directionTo(enemy.getLocation()));
+		}
+	}
+
+	/**
+	 * Helper method that attempts to surround itself with num trees, leaving
+	 * spaces in direction dir for spawning units. Does not gurantee
+	 * functionality if it gets blocked while running.
+	 * 
+	 * @param dir
+	 *            Direction to leave space, if possible
+	 * @param num
+	 *            Number of Trees to plant: max 6
+	 * @throws GameActionException
+	 */
+	static void treeHugger(Direction dir, int num) throws GameActionException {
+		int count = 0;
+		while (count < num) {
+			waterPlants();
+			switch (count) {
+			case 0:
+				if (rc.canPlantTree(dir.opposite()))
+					rc.plantTree(dir.opposite());
+				break;
+			case 1:
+				if (rc.canPlantTree(dir.opposite().rotateLeftDegrees(60)))
+					rc.plantTree(dir.opposite().rotateLeftDegrees(60));
+				break;
+			case 2:
+				if (rc.canPlantTree(dir.opposite().rotateRightDegrees(60)))
+					rc.plantTree(dir.opposite().rotateRightDegrees(60));
+				break;
+			case 3:
+				if (rc.canPlantTree(dir.opposite().rotateLeftDegrees(120)))
+					rc.plantTree(dir.opposite().rotateLeftDegrees(120));
+				break;
+			case 4:
+				if (rc.canPlantTree(dir.opposite().rotateRightDegrees(60)))
+					rc.plantTree(dir.opposite().rotateRightDegrees(60));
+				break;
+			case 5:
+				if (rc.canPlantTree(dir))
+					rc.plantTree(dir);
+				break;
+			}
+			count++;
+		}
+	}
+
+	/**
+	 * Helper method that tells robot to water any plants it can without moving,
+	 * so long as their health has dropped at least 5 points
+	 * 
+	 * @throws GameActionException
+	 */
+	static void waterPlants() throws GameActionException {
+		TreeInfo[] nearby = rc.senseNearbyTrees(50, rc.getTeam());
+		for (TreeInfo ti : nearby) {
+			if (rc.canWater(ti.getLocation()) && ti.getMaxHealth() - ti.getHealth() >= 5)
+				rc.water(ti.getLocation());
+		}
+	}
+
+	/**
+	 * Returns true and immediately donates all bullets if we can win in that
+	 * turn. Returns false otherwise
+	 * 
+	 * @return
+	 * @throws GameActionException
+	 */
+	static boolean canWin() throws GameActionException {
+		float difference = 1000 - rc.getTeamVictoryPoints();
+		if ((rc.getTeamBullets() / 10) >= difference) {
+			rc.donate(rc.getTeamBullets());
+			return true;
+		} else
+			return false;
+	}
+
+	private enum ShotType {
+		PENTAD, TRIAD, SINGLE;
+	}
