@@ -193,7 +193,7 @@ public strictfp class RobotPlayer {
 
 				// Randomly attempt to build a soldier or lumberjack in this direction
 				if (!canPlant){
-					Direction buildDirection = new Direction((float) Math.PI);
+					Direction buildDirection = dir;
 					if (rc.canBuildRobot(RobotType.SOLDIER, buildDirection) && (birthDay%8==0|birthDay%8==1|birthDay%8==2) && rc.isBuildReady()) {
 						rc.buildRobot(RobotType.SOLDIER, buildDirection);
 					} else if (rc.canBuildRobot(RobotType.LUMBERJACK, buildDirection) && (birthDay%8==3|birthDay%8==4) && rc.isBuildReady()) {
