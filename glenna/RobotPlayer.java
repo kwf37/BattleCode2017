@@ -9,8 +9,9 @@ public strictfp class RobotPlayer {
 		static int XCOORDENEMY = 2;
 		static int YCOORDENEMY = 4;
 		static int SHOULDCOME = 5;
+		static int PRODUCTIONCHANNEL = 6;
 		//Max number of bots
-		static int GARDENER_MAX = 20;
+		static int GARDENER_MAX = 30;
 
 		//Max HP of bots
 		static float GARDENER_MAX_HP = 100;
@@ -19,6 +20,8 @@ public strictfp class RobotPlayer {
 		
 		static int COME = 1;
 		static int DONTCOME = 0;
+		static int SHOULDPRODUCE = 1;
+		static int DONTPRODUCE = 0;
 		static int SETTLERADIUS = 4;
 
 	/**
@@ -60,6 +63,7 @@ public strictfp class RobotPlayer {
 		Direction dir = rc.getLocation().directionTo(rc.getInitialArchonLocations(rc.getTeam().opponent())[0]);
     	while (true) {
     		try {
+    			broadcastIfSenseEnemy();
     			if(rc.canMove(dir)) {
     				rc.move(dir);
     			} else {
@@ -100,6 +104,7 @@ public strictfp class RobotPlayer {
 
             // Try/catch blocks stop unhandled exceptions, which cause your robot to explode
             try {
+            	broadcastIfSenseEnemy();
             	System.out.println(rc.readBroadcast(5));
                 MapLocation myLocation = rc.getLocation();
 
@@ -157,13 +162,19 @@ public strictfp class RobotPlayer {
 
 			// Try/catch blocks stop unhandled exceptions, which cause your robot to explode
 			try {
-
+				broadcastIfSenseEnemy();
+				int numGard = rc.readBroadcast(3);
+				rc.broadcast(3, 0);
 				// Generate a random direction
 				Direction dir = randomDirection();
 
 				// Hire a gardener if enough slots in a random direction
 				int prevNumGard = rc.readBroadcast(GARDENER_CHANNEL);
-				if (prevNumGard < GARDENER_MAX && rc.canHireGardener(dir)) {
+				if (numGard > 15 && numGard < GARDENER_MAX && rc.getTeamBullets() > 500 && rc.canHireGardener(dir)) {
+					rc.hireGardener(dir);
+					rc.broadcast(GARDENER_CHANNEL, prevNumGard + 1);
+				}
+				if (numGard <= 10 && numGard < GARDENER_MAX && rc.canHireGardener(dir)) {
 					rc.hireGardener(dir);
 					rc.broadcast(GARDENER_CHANNEL, prevNumGard + 1);
 				}
@@ -179,18 +190,21 @@ public strictfp class RobotPlayer {
 				//Donate bullets, see if can win
 				if (rc.getTeamBullets() >= 500) rc.donate(100);
 				canWin();
-
+				
 				// Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
 				Clock.yield();
+				
 
 			} catch (Exception e) {
 				System.out.println("Archon Exception");
 				e.printStackTrace();
+				
 			}
 		}
 	}
 
 	static void runGardener() throws GameActionException {
+		int birthDay = 0;
 		System.out.println("I'm a gardener!");
 		MapLocation target = tryFindSpot();
 		boolean settled = false;
@@ -201,7 +215,8 @@ public strictfp class RobotPlayer {
 
 			// Try/catch blocks stop unhandled exceptions, which cause your robot to explode
 			try {
-
+				Direction directionToArchon = rc.getLocation().directionTo(enemy[0]);
+				rc.broadcast(3, rc.readBroadcast(3)+1);
 				// Listen for home archon's location
 				int xPos = rc.readBroadcast(0);
 				int yPos = rc.readBroadcast(1);
@@ -212,7 +227,7 @@ public strictfp class RobotPlayer {
 						dir = dir.rotateRightDegrees((float)(Math.random()*180));
 						tryMove(dir);
 					}
-					settled = settleDown();
+					settled = settleDown(directionToArchon);
 				} 
 				
 
@@ -249,25 +264,31 @@ public strictfp class RobotPlayer {
 				}*/
 
 				// Start planting if settled by using inital enemy archon loc
-				Direction directionToArchon = rc.getLocation().directionTo(enemy[0]);
 				if (settled){
 					tryPlantTree(directionToArchon.opposite(), 60, 2);
 				}
 
 				// Always try to water
 				tryWaterTree();
-
+				if (birthDay > 5 && !settled) {
+					hireLumberjacks(directionToArchon);
+				}
 				// Attempt to build a soldier or lumberjack in this direction
 				if (settled){
 					hireLumberjacks(directionToArchon);
-					if (rc.getTeamBullets() > 100 && rc.senseNearbyRobots().length>0) {
+					if (rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length>0) {
+						tryBuildRobot(RobotType.SOLDIER, directionToArchon);
+					} else if (rc.readBroadcast(PRODUCTIONCHANNEL)>0) {
 						produceRandom(directionToArchon);
 					}
 				}
-
+				if (rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length>0) {
+					tryBuildRobot(RobotType.SOLDIER, directionToArchon);
+				}
+				rc.broadcast(PRODUCTIONCHANNEL, DONTPRODUCE);
 				// Broadcast if near death
-				checkBroadcastDeath(GARDENER_CHANNEL, GARDENER_MAX_HP);
-
+				//checkBroadcastDeath(GARDENER_CHANNEL, GARDENER_MAX_HP);
+				birthDay++;
 				// Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
 				Clock.yield();
 
@@ -287,6 +308,7 @@ public strictfp class RobotPlayer {
 
             // Try/catch blocks stop unhandled exceptions, which cause your robot to explode
             try {
+            	broadcastIfSenseEnemy();
             	System.out.println(rc.readBroadcast(5));
                 MapLocation myLocation = rc.getLocation();
 
@@ -301,11 +323,7 @@ public strictfp class RobotPlayer {
 	                	rc.broadcast(YCOORDENEMY, (int)robots[0].getLocation().y);
 	                	rc.broadcast(5, COME);
 	                    // And we have enough bullets, and haven't attacked yet this turn...
-	                    if (rc.canFireSingleShot()) {
-	                        // ...Then fire a bullet in the direction of the enemy.
-	                        System.out.println("lol");
-	                    	rc.fireSingleShot(rc.getLocation().directionTo(robots[0].location));
-	                    }
+	                	strafeAndShoot(robots[0]);
 	                }
                 } else {
                 	if(robots.length == 0) {
@@ -315,17 +333,16 @@ public strictfp class RobotPlayer {
                 
                 broadcastLocation = new MapLocation(rc.readBroadcast(XCOORDENEMY),rc.readBroadcast(YCOORDENEMY));
              // Try to move to a preexisting broadcast location, otherwise move randomly
-                if (rc.readBroadcast(5)==DONTCOME){
-                	if(!tryMove(dir)) {
-                		dir = dir.rotateRightDegrees((float)(Math.random()*180));
-                		tryMove(dir);
-                	}
-                } else {
-                	goToDirectAvoidCollision(broadcastLocation);
-                }
-                
-                System.out.println(rc.readBroadcast(XCOORDENEMY));
-                
+	         if (!rc.hasMoved()){
+                	if (rc.readBroadcast(5)==DONTCOME){
+	                	if(!tryMove(dir)) {
+	                		dir = dir.rotateRightDegrees((float)(Math.random()*180));
+	                		tryMove(dir);
+	                	}
+	                } else {
+	                	goToDirectAvoidCollision(broadcastLocation);
+	                }
+	         }    
                
                 
 
@@ -351,7 +368,7 @@ public strictfp class RobotPlayer {
 
 			// Try/catch blocks stop unhandled exceptions, which cause your robot to explode
 			try {
-
+				broadcastIfSenseEnemy();
 				// See if there are any enemy robots within striking range (distance 1 from lumberjack's radius)
 				RobotInfo[] robots = rc.senseNearbyRobots(RobotType.LUMBERJACK.bodyRadius+GameConstants.LUMBERJACK_STRIKE_RADIUS, enemy);
 
@@ -369,13 +386,14 @@ public strictfp class RobotPlayer {
 						Direction toEnemy = myLocation.directionTo(enemyLocation);
 
 						tryMove(toEnemy);
-					} else if (!rc.hasAttacked()){
+					}else if (rc.senseNearbyTrees(-1, rc.getTeam().NEUTRAL).length>0) {
 						TreeInfo[] trees = rc.senseNearbyTrees();
+						Direction toTree = rc.getLocation().directionTo(trees[0].getLocation());
+						tryMove(toTree);
 						for (TreeInfo t: trees){
 							if (t.getTeam() == Team.NEUTRAL && rc.canChop(t.getID())) 
 								rc.chop(t.getID());
-						} 
-					}
+					} 
 				}
 				
 				if(!rc.hasAttacked() && !rc.hasMoved())
@@ -390,7 +408,7 @@ public strictfp class RobotPlayer {
 
 				// Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
 				Clock.yield();
-
+				}
 			} catch (Exception e) {
 				System.out.println("Lumberjack Exception");
 				e.printStackTrace();
@@ -637,8 +655,8 @@ public strictfp class RobotPlayer {
 
     			// Now try a bunch of similar angles
     			int currentCheck = 1;
-    			int checksPerSide = 40;
-    			int degreeOffset = 1;
+    			int checksPerSide = 15 ;
+    			int degreeOffset = 12;
     			while(currentCheck<=checksPerSide) {
     				// Try the offset of the left side
     				if(rc.canBuildRobot(robo,dir.rotateLeftDegrees(degreeOffset*currentCheck))) {
@@ -682,7 +700,38 @@ public strictfp class RobotPlayer {
     	}
     	return false;
     }
-    static boolean settleDown() throws GameActionException {
+    static boolean settleDown(Direction dir) throws GameActionException {
+    	
+    	float howfaraway = 5 + GameConstants.GENERAL_SPAWN_OFFSET;
+    	System.out.println(howfaraway);
+    	if (rc.senseNearbyRobots(howfaraway, rc.getTeam()).length > 0) {
+    		return false;
+    	}
+    	/*for (int i = 0; i<7; i++) {
+    		if (!rc.canPlantTree((dir.rotateRightDegrees(i*60)))) {
+    			return false;
+    		}
+    	}*/
     	return !rc.isCircleOccupiedExceptByThisRobot(rc.getLocation(), SETTLERADIUS);
     }
+    static boolean broadcastIfSenseEnemy() throws GameActionException {
+    	if(rc.senseNearbyRobots().length>0) {
+    		rc.broadcast(PRODUCTIONCHANNEL, rc.readBroadcast(PRODUCTIONCHANNEL)+1);
+    		return true;
+    	} 
+    	return false;
+    }
+    static void strafeAndShoot(RobotInfo enemy) throws GameActionException {
+		Direction dir = rc.getLocation().directionTo(enemy.getLocation());
+		if (!tryMove(dir.rotateLeftDegrees(90)))
+			tryMove(dir.rotateRightDegrees(90));
+		if(rc.canFirePentadShot()) {
+			rc.firePentadShot(dir);
+		} else if (rc.canFireTriadShot()) {
+			rc.fireTriadShot(dir);
+		} else if (rc.canFireSingleShot()) {
+			rc.fireSingleShot(dir);
+		}
+	}
+
 }
