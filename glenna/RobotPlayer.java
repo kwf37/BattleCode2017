@@ -396,11 +396,12 @@ public strictfp class RobotPlayer {
 					} 
 				}
 				
-				if(!rc.hasAttacked() && !rc.hasMoved())
+				if(!rc.hasAttacked() && !rc.hasMoved()){
 					// Move Randomly
 					if(!tryMove(dir)) {
                 		dir = dir.rotateRightDegrees((float)(Math.random()*180));
                 		tryMove(dir);
+				}
                 	}
 
 
