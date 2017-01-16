@@ -10,6 +10,7 @@ public strictfp class RobotPlayer {
 	static int YCOORDENEMY = 4;
 	static int SHOULDCOME = 5;
 	static int PRODUCTIONCHANNEL = 6;
+	static int SCOUT_CHANNEL = 7;
 	//Max number of bots
 	static int GARDENER_MAX = 20;
 
@@ -624,11 +625,13 @@ public strictfp class RobotPlayer {
 	 * Precondition: points to a channel that records the active number of a certain type of robot.
 	 * @throws GameActionException 
 	 */
-	static void checkBroadcastDeath(int channel, float maxHP) throws GameActionException{
-		if (rc.getHealth() <= maxHP * (0.01) ) {
+	static boolean checkBroadcastDeath(int channel) throws GameActionException{
+		if (rc.getHealth() <= 5 ) {
 			int prevNumBots = rc.readBroadcast(channel);
 			rc.broadcast(channel, prevNumBots - 1);
+			return true;
 		}
+		return false;
 	}
 
 	/**
