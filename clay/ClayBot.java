@@ -21,7 +21,7 @@ public strictfp class RobotPlayer {
 
 	static int COME = 1;
 	static int DONTCOME = 0;
-	static float SETTLERADIUS = (float)3.5;
+	static float SETTLERADIUS = (float)5;
 
 	/**
 	 * run() is the method that is called when a robot is instantiated in the Battlecode world.
@@ -118,7 +118,7 @@ public strictfp class RobotPlayer {
 		Direction dir = rc.getLocation().directionTo(enemy[0]);
 		int check = 0;
 		int age = 0;
-
+		Direction spawningDirection = figureOutDirection();
 		// The code you want your robot to perform every round should be in this loop
 		while (true) {
 
@@ -151,7 +151,7 @@ public strictfp class RobotPlayer {
 							rc.move(settleLoc);
 
 						// For an occasionally imperfect square but faster building, remove elif.
-						else if (rc.getLocation() == settleLoc) tryPlantSquare();
+						else if (rc.getLocation() == settleLoc) tryPlantSquare(spawningDirection.rotateRightDegrees(90));
 					}
 				}
 
@@ -161,13 +161,13 @@ public strictfp class RobotPlayer {
 				// Attempt to build a soldier or lumberjack in this direction
 				//Direction directionToArchon = rc.getLocation().directionTo(enemy[0]);
 				if (rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length>0) {
-					tryBuildRobot(RobotType.SOLDIER, Direction.getSouth());
+					tryBuildRobot(RobotType.SOLDIER, spawningDirection);
 				}
 				if(rc.senseNearbyTrees(-1, rc.getTeam().NEUTRAL).length>0) {
-					tryBuildRobot(RobotType.LUMBERJACK, Direction.getSouth());
+					tryBuildRobot(RobotType.LUMBERJACK, spawningDirection);
 				}
 				if (rc.getTeamBullets() > 120 && rc.isBuildReady()) {
-					produceRandom(Direction.getSouth());
+					produceRandom(spawningDirection);
 				}
 
 				// Broadcast if near death
@@ -336,7 +336,8 @@ public strictfp class RobotPlayer {
     			if (robots.length > 0) {
     				//Go to Robots
     				if(!tryMove(robots[0].getLocation()))
-    					rc.fireSingleShot(rc.getLocation().directionTo(robots[0].getLocation()));
+    					if (rc.canFireSingleShot())
+    						rc.fireSingleShot(rc.getLocation().directionTo(robots[0].getLocation()));
     			} //Otherwise random explore
     				else {
 	    				if(rc.canMove(dir)&&!rc.hasMoved()) {
@@ -628,9 +629,9 @@ public strictfp class RobotPlayer {
 	 * Try planting trees in a square formation.
 	 * 
 	 */
-	static void tryPlantSquare() throws GameActionException{
+	static void tryPlantSquare(Direction a) throws GameActionException{
 		int num = 0;
-		Direction dir = Direction.getEast();
+		Direction dir = a;
 		boolean planted = tryPlantTree(dir, 2, 10);
 		while (num <= 1 && !planted){
 			dir = dir.rotateLeftDegrees(90);
@@ -638,6 +639,33 @@ public strictfp class RobotPlayer {
 			if (planted) return;
 			num++;
 		}
+	}
+	/**
+	 * Figure out which direction to make the square opening
+	 * 
+	 */
+	static Direction figureOutDirection() throws GameActionException{
+		Direction initialArchonDir = rc.getLocation().directionTo(rc.getInitialArchonLocations(rc.getTeam().opponent())[0]);
+		for (int i = 0; i < 4; i++) {
+			if (i == 0) {
+				if (initialArchonDir.degreesBetween(Direction.getEast()) < 90) {
+					return Direction.getEast();
+				}
+			} else if (i == 1) {
+				if (initialArchonDir.degreesBetween(Direction.getNorth()) < 90) {
+					return Direction.getNorth();
+				}
+			} else if (i == 2) {
+				if (initialArchonDir.degreesBetween(Direction.getWest()) < 90) {
+					return Direction.getWest();
+				}
+			} else{
+				if (initialArchonDir.degreesBetween(Direction.getSouth()) < 90) {
+					return Direction.getSouth();
+				}
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -830,7 +858,7 @@ public strictfp class RobotPlayer {
     }
     static void strafeAndShoot(RobotInfo enemy) throws GameActionException {
 		Direction dir = rc.getLocation().directionTo(enemy.getLocation());
-		if (!tryMove(dir.rotateLeftDegrees(90))&&!rc.hasMoved())
+		if (!rc.hasMoved()&& !tryMove(dir.rotateLeftDegrees(90)))
 			tryMove(dir.rotateRightDegrees(90));
 		if(rc.canFirePentadShot()&&rc.getTeamBullets()>150) {
 			rc.firePentadShot(dir);
@@ -885,16 +913,23 @@ public strictfp class RobotPlayer {
     	rc.move(trees[0].getLocation());
     }
     
-    static boolean tryMove(MapLocation enemyLocation) throws GameActionException {
-    	if (rc.canMove(enemyLocation)) {
-    		rc.move(enemyLocation);
-    		return true;
-    	} else {
-    		if (distanceAwayFromLocation(enemyLocation) <2.01) return false;
-    		rc.move(rc.getLocation().directionTo(enemyLocation), distanceAwayFromLocation(enemyLocation)-2);
-    		return true;
-    	}
-    }
+
+static boolean tryMove(MapLocation enemyLocation) throws GameActionException {
+		if (rc.canMove(enemyLocation)) {
+			rc.move(enemyLocation);
+			return true;
+		} else {
+			if (distanceAwayFromLocation(enemyLocation) <2.01) return false;
+			if (rc.canMove(rc.getLocation().directionTo(enemyLocation), 
+					distanceAwayFromLocation(enemyLocation)-2)){
+				rc.move(rc.getLocation().directionTo(enemyLocation), 
+						distanceAwayFromLocation(enemyLocation)-2);
+				return true;
+			}
+		}
+		return false;
+	}
+
     static float distanceAwayFromLocation (MapLocation location) throws GameActionException {
     	float xcoordMe = rc.getLocation().x;
     	float ycoordMe = rc.getLocation().y;
