@@ -238,6 +238,7 @@ public strictfp class RobotPlayer {
 	}
 
 	static void runLumberjack() throws GameActionException {
+		static void runLumberjack() throws GameActionException {
 		System.out.println("I'm a lumberjack!");
 		Team enemy = rc.getTeam().opponent();
 		Direction dir = new Direction(0);
@@ -246,7 +247,7 @@ public strictfp class RobotPlayer {
 
 			// Try/catch blocks stop unhandled exceptions, which cause your robot to explode
 			try {
-				broadcastIfSenseEnemy();
+
 				// See if there are any enemy robots within striking range (distance 1 from lumberjack's radius)
 				RobotInfo[] robots = rc.senseNearbyRobots(RobotType.LUMBERJACK.bodyRadius+GameConstants.LUMBERJACK_STRIKE_RADIUS, enemy);
 
@@ -257,36 +258,37 @@ public strictfp class RobotPlayer {
 					// No close robots, so search for robots within sight radius
 					robots = rc.senseNearbyRobots(-1,enemy);
 
-					// If there is a robot, move towards it
-					if (robots.length > 0) {
-						MapLocation myLocation = rc.getLocation();
-						MapLocation enemyLocation = robots[0].getLocation();
-						Direction toEnemy = myLocation.directionTo(enemyLocation);
-
-						tryMove(toEnemy);
-					}else if (rc.senseNearbyTrees(-1, rc.getTeam().NEUTRAL).length>0) {
-						TreeInfo[] trees = rc.senseNearbyTrees(-1, rc.getTeam().NEUTRAL);
-						Direction toTree = rc.getLocation().directionTo(trees[0].getLocation());
-						tryMove(toTree);
-						for (TreeInfo t: trees){
-							if (t.getTeam() == Team.NEUTRAL && rc.canChop(t.getID())) 
-								rc.chop(t.getID());
-					} 
+					//					// If there is a robot, move towards it
+					//					if (robots.length > 0) {
+					//						MapLocation myLocation = rc.getLocation();
+					//						MapLocation enemyLocation = robots[0].getLocation();
+					//						Direction toEnemy = myLocation.directionTo(enemyLocation);
+					//
+					//						tryMove(toEnemy);
+					//					} 
 				}
-				
-				if(!rc.hasAttacked() && !rc.hasMoved())
-					// Move Randomly
+
+				// Try to kill neutral trees if any
+				TreeInfo[] neutralTrees = rc.senseNearbyTrees(-1, Team.NEUTRAL);
+				boolean hasAttackedTree = killTheTrees(neutralTrees);
+
+				// Try to kill enemy trees if any
+				if (!hasAttackedTree){
+					TreeInfo[] enemyTrees = rc.senseNearbyTrees(-1, rc.getTeam().opponent());
+					killTheTrees(enemyTrees);
+				}
+
+				// Done nothing, so move randomly
+				if(!rc.hasAttacked() && !rc.hasMoved()){
 					if(!tryMove(dir)) {
-                		dir = dir.rotateRightDegrees((float)(Math.random()*180));
-                		tryMove(dir);
-                	}
-
-
-
+						dir = dir.rotateRightDegrees((float)(Math.random()*180));
+						tryMove(dir);
+					}
+				}
 
 				// Clock.yield() makes the robot wait until the next turn, then it will perform this loop again
 				Clock.yield();
-				}
+
 			} catch (Exception e) {
 				System.out.println("Lumberjack Exception");
 				e.printStackTrace();
@@ -734,22 +736,26 @@ public strictfp class RobotPlayer {
 	 * See if there are enemy/neutral trees nearby- chop them if possible, otherwise
 	 * move to them if possible.
 	 */
-	static void killTheTrees(TreeInfo[] trees) throws GameActionException {
+	static boolean killTheTrees(TreeInfo[] trees) throws GameActionException {
+		boolean hasAttackedTree = false;
 		if (trees.length > 0){
 			if (!rc.hasAttacked()){
 				for (TreeInfo t: trees){
 					if (rc.canChop(t.getID())){ 
 						rc.chop(t.getID());
+						hasAttackedTree = true;
 						break;
 					}
 				}
 			}
-			if (!rc.hasMoved()){
-					Direction toTree = rc.getLocation().directionTo(trees[0].getLocation());
-					tryMove(toTree);
+			if (!rc.hasMoved() && !hasAttackedTree){
+				Direction toTree = rc.getLocation().directionTo(trees[0].getLocation());
+				tryMove(toTree);
 			}
 		}
+		return hasAttackedTree;
 	}
+	
 	static MapLocation tryFindSpot() throws GameActionException{
 		float circleRadius = 3 + GameConstants.GENERAL_SPAWN_OFFSET;
 		Direction dir = new Direction(0);
