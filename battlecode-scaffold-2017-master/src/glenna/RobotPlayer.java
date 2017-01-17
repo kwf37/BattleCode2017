@@ -1,4 +1,4 @@
-package scoutspawn;
+package glenna;
 import battlecode.common.*;
 
 public strictfp class RobotPlayer {
@@ -239,7 +239,6 @@ public strictfp class RobotPlayer {
 	}
 
 	static void runLumberjack() throws GameActionException {
-		static void runLumberjack() throws GameActionException {
 		System.out.println("I'm a lumberjack!");
 		Team enemy = rc.getTeam().opponent();
 		Direction dir = new Direction(0);
