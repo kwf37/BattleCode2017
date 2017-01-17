@@ -84,6 +84,8 @@ public strictfp class RobotPlayer {
 				//Move randomly or retreat
 				if(robots.length>0) {
 					runAwayBravely(locRobots);
+				} else {
+					wander();
 				}
 
 				// Broadcast archon's location for other robots on the team to know
@@ -174,8 +176,9 @@ public strictfp class RobotPlayer {
 										rc.disintegrate();
 									}
 									// Stuck, but not useless, so settles down.
-									else settled = true;
+									else {settled = true;
 									circleSpawn = true;
+									}
 								}
 							}
 							// Can move to target
@@ -184,7 +187,7 @@ public strictfp class RobotPlayer {
 
 					// Settle into the spot if close enough to target
 							if ((target != null && (rc.getLocation().equals(target) || 
-									rc.getLocation().isWithinDistance(target, (float) 0.5))) && !senseIfFriendlyArchonNear()) {
+									rc.getLocation().isWithinDistance(target, (float) 0.5)))) {
 								settled = true;
 								circleSpawn = true;
 							}
@@ -211,9 +214,9 @@ public strictfp class RobotPlayer {
 				// Attempt to build a soldier or lumberjack in this direction
 				//Direction directionToArchon = rc.getLocation().directionTo(enemy[0]);
 				if (rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length>0) {
-					tryBuildRobot(RobotType.SOLDIER, figureOutDirection());
+					tryBuildRobot(RobotType.LUMBERJACK, figureOutDirection());
 				}
-				if (rc.readBroadcast(SCOUT_CHANNEL) < 5 && rc.getTeamBullets() > 120){
+				if (rc.readBroadcast(SCOUT_CHANNEL) < 5 && rc.getTeamBullets() > 100){
 					if (tryBuildRobot(RobotType.SCOUT, figureOutDirection())){
 						rc.broadcast(SCOUT_CHANNEL, rc.readBroadcast(SCOUT_CHANNEL)+1);
 					}
