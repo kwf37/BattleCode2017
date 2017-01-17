@@ -821,21 +821,24 @@ public strictfp class RobotPlayer {
 	 * See if there are enemy/neutral trees nearby- chop them if possible, otherwise
 	 * move to them if possible.
 	 */
-	static void killTheTrees(TreeInfo[] trees) throws GameActionException {
+	static boolean killTheTrees(TreeInfo[] trees) throws GameActionException {
+		boolean hasAttackedTree = false;
 		if (trees.length > 0){
 			if (!rc.hasAttacked()){
 				for (TreeInfo t: trees){
 					if (rc.canChop(t.getID())){ 
 						rc.chop(t.getID());
+						hasAttackedTree = true;
 						break;
 					}
 				}
 			}
-			if (!rc.hasMoved()){
+			if (!hasAttackedTree && !rc.hasMoved()){
 				Direction toTree = rc.getLocation().directionTo(trees[0].getLocation());
 				tryMove(toTree);
 			}
 		}
+		return hasAttackedTree;
 	}
 	
 	static MapLocation tryFindSpot() throws GameActionException{
