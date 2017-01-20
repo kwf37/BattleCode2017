@@ -11,13 +11,21 @@ public strictfp class RobotPlayer {
 	static int SHOULDCOME = 5;
 	static int PRODUCTIONCHANNEL = 6;
 	static int SCOUT_CHANNEL = 7;
-	
+	static int XMINMAP = 8;
+	static int XMAXMAP = 9;
+	static int YMINMAP = 10;
+	static int YMAXMAP = 11;
+	static int GARDENER_DISTRESS = 12;
+	static int GARDENER_X = 0;
+	static int GARDENER_Y = 0;
 	//Max number of bots
-	static int GARDENER_MAX = 20;
+	static int GARDENER_MAX = 25;
 	static int SCOUT_MAX = 5;
 
 	static int COME = 1;
 	static int DONTCOME = 0;
+	static int DISTRESSED = 1;
+	static int NOTDISTRESSED = 0;
 	static float SETTLERADIUS = (float)4.5;
 
 	/**
@@ -58,11 +66,13 @@ public strictfp class RobotPlayer {
 	static void runArchon() throws GameActionException {
 		System.out.println("I'm an archon!");
 		Direction moveDirection = randomDirection();
+		
 		// The code you want your robot to perform every round should be in this loop
 		while (true) {
 
 			// Try/catch blocks stop unhandled exceptions, which cause your robot to explode
 			try {
+				int areaOfMap = (rc.readBroadcast(XMAXMAP)-rc.readBroadcast(XMINMAP))*(rc.readBroadcast(YMAXMAP)-rc.readBroadcast(YMINMAP));
 				RobotInfo[] robots = rc.senseNearbyRobots(-1, rc.getTeam().opponent());
 				MapLocation[] locRobots = locEnemyRobotsNearby(robots);
 				if(rc.readBroadcast(SHOULDCOME)==DONTCOME)
@@ -76,14 +86,19 @@ public strictfp class RobotPlayer {
 				Direction dir = randomDirection();
 
 				// Hire a gardener if enough slots in a random direction
-				if (numGard < GARDENER_MAX && rc.canHireGardener(dir)) {
+				if (robots.length == 0 && rc.readBroadcast(GARDENER_DISTRESS) == 0 && numGard < 1 && rc.getRoundNum()<50) {
+					rc.hireGardener(dir);
+					rc.broadcast(GARDENER_CHANNEL, numGard + 1);
+				} else if (robots.length == 0 && rc.readBroadcast(GARDENER_DISTRESS) == 0 && numGard < GARDENER_MAX && rc.canHireGardener(dir) && rc.getRoundNum() > 50) {
 					rc.hireGardener(dir);
 					rc.broadcast(GARDENER_CHANNEL, numGard + 1);
 				}
 
 				//Move randomly or retreat
 				if(robots.length>0) {
-					runAwayBravely(locRobots);
+					if(!runAwayBravely(locRobots)) {
+						wander();
+					}
 				} else {
 					wander();
 				}
@@ -125,20 +140,24 @@ public strictfp class RobotPlayer {
 		Direction spawningDirection = figureOutDirection();
 		Direction squaringDirection = spawningDirection.rotateRightDegrees(90);
 		spawningDirection = figureOutDirection();
+		boolean didIDistress = false;
 		// The code you want your robot to perform every round should be in this loop
 		while (true) {
 
 			// Try/catch blocks stop unhandled exceptions, which cause your robot to explode
 			try {
-				
+				RobotInfo[] robots = rc.senseNearbyRobots(-1, rc.getTeam().opponent());
 				// Listen for home archon's location
 				int xPos = rc.readBroadcast(0);
 				int yPos = rc.readBroadcast(1);
 				MapLocation archonLoc = new MapLocation(xPos,yPos);   
 				Direction directionToArchon = rc.getLocation().directionTo(enemy[0]);
-				
-				if (birthDay <= 20 && settled == false) {
-					if (age % 10 == 0){
+				if(birthDay > 5 && !senseIfFriendlyArchonNear()) {
+					settled = true;
+					circleSpawn = true;
+				}
+				if (birthDay <= 10 && settled == false) {
+					if (age % 10 == 0 & rc.getRoundNum() > 100){
 						hireLumberjacks(Direction.getSouth());
 					}
 					if (!tryMove(dir)) {
@@ -151,7 +170,7 @@ public strictfp class RobotPlayer {
 						settleLoc = rc.getLocation();
 						squareSpawn = true;
 					}
-				} else if (birthDay > 20 && settled == false) { 
+				} else if (birthDay > 10 && settled == false) { 
 					
 
 					// Try finding a target by wandering around.
@@ -193,19 +212,6 @@ public strictfp class RobotPlayer {
 							}
 					}
 
-				if (settled && !rc.hasMoved() && squareSpawn){
-					//tryPlantTree(dir.opposite(), 60, 2);
-					check = tryPlantCorners(check, settleLoc);
-					if (rc.senseNearbyTrees(2).length >= 4){
-						if (!rc.hasMoved() && rc.getLocation() != settleLoc && rc.canMove(settleLoc))
-							rc.move(settleLoc);
-
-						// For an occasionally imperfect square but faster building, remove elif.
-						else if (rc.getLocation() == settleLoc) tryPlantSquare(figureOutDirection().rotateRightDegrees(90));
-					}
-				} else if (settled && circleSpawn) {
-					tryPlantTree(directionToArchon.opposite(), 60, 2);
-				}
 				
 
 				// Always try to water
@@ -214,20 +220,75 @@ public strictfp class RobotPlayer {
 				// Attempt to build a soldier or lumberjack in this direction
 				//Direction directionToArchon = rc.getLocation().directionTo(enemy[0]);
 				if (rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length>0) {
-					tryBuildRobot(RobotType.LUMBERJACK, figureOutDirection());
-				}
-				if (rc.readBroadcast(SCOUT_CHANNEL) < 5 && rc.getTeamBullets() > 100){
+					tryBuildRobot(RobotType.SOLDIER, figureOutDirection());
+				} else if (rc.readBroadcast(SCOUT_CHANNEL) < 3 && rc.getTeamBullets()>100){
 					if (tryBuildRobot(RobotType.SCOUT, figureOutDirection())){
 						rc.broadcast(SCOUT_CHANNEL, rc.readBroadcast(SCOUT_CHANNEL)+1);
 					}
+				} else {hireLumberjacks(figureOutDirection());}
+				if (rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length==0 && settled && !rc.hasMoved() && squareSpawn){
+					//tryPlantTree(dir.opposite(), 60, 2);
+					check = tryPlantCorners(check, settleLoc);
+					if (rc.senseNearbyTrees(2).length >= 4 && squareSpawn){
+						if (!rc.hasMoved() && rc.getLocation() != settleLoc && rc.canMove(settleLoc))
+							rc.move(settleLoc);
+
+						// For an occasionally imperfect square but faster building, remove elif.
+						else if (rc.getLocation() == settleLoc) tryPlantSquare(figureOutDirection().rotateRightDegrees(90));
+					} else if (circleSpawn && rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length==0 && settled && circleSpawn) {
+					tryPlantTree(directionToArchon.opposite(), 60, 2);
+					}
 				}
-				if(rc.senseNearbyTrees(-1, Team.NEUTRAL).length>0) {
+				if(rc.senseNearbyTrees(-1, Team.NEUTRAL).length>0 && rc.getTeamBullets() > 105) {
 					tryBuildRobot(RobotType.LUMBERJACK, figureOutDirection());
 				}
 				if (rc.getTeamBullets() > 120 && rc.isBuildReady()) {
 					produceRandom(figureOutDirection());
 				}
+				
+				//If sense nearby enemy, send a distress call
+				if(robots.length>0 && rc.getHealth() > 5 && rc.readBroadcast(GARDENER_DISTRESS) == 0) {
+					rc.broadcast(GARDENER_DISTRESS, 1);
+					rc.broadcast(GARDENER_X, (int)rc.getLocation().x);
+					rc.broadcast(GARDENER_Y, (int)rc.getLocation().y);
+					rc.setIndicatorDot(rc.getLocation(), 0, 0, 0);
+					didIDistress = true;
+				} else if (robots.length == 0 && rc.readBroadcast(GARDENER_DISTRESS) == 1 && didIDistress) {
+					rc.broadcast(GARDENER_DISTRESS, 0);
+					didIDistress = false;
+				} else if (rc.getHealth() <5 && robots.length > 0) {
+					rc.broadcast(GARDENER_DISTRESS, 0);
+					didIDistress = false;
+				}
+				
+				//After x rounds, prioritize trees over scouts
+				if (rc.getRoundNum()>100) {
+					if (rc.senseNearbyTrees(2).length >= 4 && squareSpawn){
+						if (!rc.hasMoved() && rc.getLocation() != settleLoc && rc.canMove(settleLoc))
+							rc.move(settleLoc);
 
+						// For an occasionally imperfect square but faster building, remove elif.
+						else if (rc.getLocation() == settleLoc) tryPlantSquare(figureOutDirection().rotateRightDegrees(90));
+					} else if (circleSpawn && rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length==0 && settled && circleSpawn) {
+					tryPlantTree(directionToArchon.opposite(), 60, 2);
+					}
+				}
+				
+//				//If settled and no nearby enemy bots, plant trees
+//				if (rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length==0 && settled && !rc.hasMoved() && squareSpawn){
+//					//tryPlantTree(dir.opposite(), 60, 2);
+//					check = tryPlantCorners(check, settleLoc);
+//					if (rc.senseNearbyTrees(2).length >= 4){
+//						if (!rc.hasMoved() && rc.getLocation() != settleLoc && rc.canMove(settleLoc))
+//							rc.move(settleLoc);
+//
+//						// For an occasionally imperfect square but faster building, remove elif.
+//						else if (rc.getLocation() == settleLoc) tryPlantSquare(figureOutDirection().rotateRightDegrees(90));
+//					}
+//				} else if (rc.senseNearbyRobots(-1, rc.getTeam().opponent()).length==0 && settled && circleSpawn) {
+//					tryPlantTree(directionToArchon.opposite(), 60, 2);
+//				}
+				
 				// Broadcast if near death
 				if (!broadcastedDeath)
 					broadcastedDeath = checkBroadcastDeath(GARDENER_CHANNEL);
@@ -257,10 +318,16 @@ public strictfp class RobotPlayer {
 				float xcoord = rc.readBroadcast(XCOORDENEMY);
 				float ycoord = rc.readBroadcast(YCOORDENEMY);
 				MapLocation enemyLocation = new MapLocation(xcoord, ycoord);
+				MapLocation gardLoc = new MapLocation(rc.readBroadcast(GARDENER_X),rc.readBroadcast(GARDENER_Y));
+				rc.setIndicatorDot(enemyLocation, 0, 0, 0);
+				//Check for gardeners distressing
+				if (rc.readBroadcast(GARDENER_DISTRESS)==1) {
+					goToDirectAvoidCollision(gardLoc);
+				}
 				//If broadcast says come, go there, otherwise if u sense enemies, broadcast andmove randomly
-				if (rc.readBroadcast(SHOULDCOME) == COME) {
+				else if (rc.readBroadcast(SHOULDCOME) == COME) {
 					goToDirectAvoidCollision(enemyLocation);
-					if(rc.getLocation().isWithinDistance(enemyLocation, (float)1.5) && robots.length==0) {
+					if(rc.getLocation().isWithinDistance(enemyLocation, 6) && robots.length==0) {
 						rc.broadcast(SHOULDCOME, DONTCOME);
 					}
 				} else {
@@ -336,7 +403,7 @@ public strictfp class RobotPlayer {
 
 			// Try/catch blocks stop unhandled exceptions, which cause your robot to explode
 			try {
-				if (rc.readBroadcast(SHOULDCOME)==COME) {
+				if (rc.readBroadcast(SHOULDCOME)==DONTCOME) {
 					broadcastIfSenseEnemy();
 				}
 				
@@ -401,7 +468,7 @@ public strictfp class RobotPlayer {
 				RobotInfo[] robots = rc.senseNearbyRobots(-1, rc.getTeam().opponent());
 				RobotInfo gardenerToKill = null;
 				for (RobotInfo robot: robots) {
-					if (robot.getType()==RobotType.GARDENER) {
+					if (robot.getType()==RobotType.GARDENER||robot.getType() == RobotType.SCOUT) {
 						gardenerToKill = robot;
 						break;
 					}
@@ -409,13 +476,13 @@ public strictfp class RobotPlayer {
 				//If Robots are nearby
 				if (gardenerToKill != null) {
 					//Go to Robots
-					if(!tryMove(gardenerToKill.getLocation()) && rc.canFireSingleShot())
+					if(!rc.hasMoved() && !tryMove(gardenerToKill.getLocation()) && rc.canFireSingleShot())
 						rc.fireSingleShot(rc.getLocation().directionTo(gardenerToKill.getLocation()));
 				} //Otherwise random explore
 				else {
 					if(rc.canMove(dir)&&!rc.hasMoved()) {
 						rc.move(dir);
-					} else {
+					} else if (!rc.hasMoved()) {
 						dir = dir.rotateRightDegrees((float)(Math.random()*180));
 						tryMove(dir);
 					}
@@ -860,8 +927,9 @@ public strictfp class RobotPlayer {
 		int randomIndex = (int)(Math.random()*nearbyTrees.length);
 		//System.out.println(randomIndex);
 		for (TreeInfo trees: nearbyTrees) {
-			if(rc.canShake(trees.getLocation())) {
+			if(rc.canShake(trees.getLocation()) && trees.getContainedBullets()>0) {
 				//System.out.println("shaking");
+				tryMoveToLoc(trees.getLocation());
 				rc.shake(trees.getLocation());
 				return true;
 			}
@@ -904,9 +972,9 @@ public strictfp class RobotPlayer {
 		Direction dir = new Direction(0);
 		int checks = 1;
 		while (checks <= 8){
-			MapLocation endLoc = rc.getLocation().add(dir, 1 + rc.getType().sensorRadius - circleRadius);
+			MapLocation endLoc = rc.getLocation().add(dir, 1);
 			if (rc.onTheMap(endLoc) && !rc.isLocationOccupied(endLoc)){
-				if (!rc.isCircleOccupiedExceptByThisRobot(endLoc, 2)) {
+				if (!rc.isCircleOccupiedExceptByThisRobot(endLoc, (float)2.5)) {
 					return endLoc;
 				}
 			}
@@ -1024,15 +1092,15 @@ public strictfp class RobotPlayer {
      * @param enemies  location of enemies
      * @throws GameActionException
      */
-    static void runAwayBravely(MapLocation[] enemies) throws GameActionException {
+    static boolean runAwayBravely(MapLocation[] enemies) throws GameActionException {
         if(enemies.length == 1){ //only one enemy
             Direction dir = new Direction(enemies[0].x, enemies[0].y); //direction of the enemy
-            tryMove(dir.opposite()); //go in the opposite direction
+            return tryMove(dir.opposite()); //go in the opposite direction
         }
         else{
            MapLocation ml = getCenterOfMass(enemies);
             Direction dir = new Direction(ml.x, ml.y); //direction of the CoM of the enemy
-           tryMove(dir.opposite()); //go in the opposite direction
+           return tryMove(dir.opposite()); //go in the opposite direction
         }
 
 
@@ -1065,10 +1133,25 @@ public strictfp class RobotPlayer {
     static boolean senseIfFriendlyArchonNear() throws GameActionException {
     	RobotInfo[] friendlyRobots = rc.senseNearbyRobots(-1, rc.getTeam());
     	for(RobotInfo robots: friendlyRobots) {
-    		if (robots.getType()==RobotType.ARCHON) {
+    		if (robots.getType()==RobotType.ARCHON ||
+    				robots.getType() == RobotType.GARDENER) {
     			return true;
     		}
     	}
     	return false;
+    }
+    static void updateMap() throws GameActionException {
+    	if(rc.getLocation().x < rc.readBroadcast(XMINMAP)) {
+    		rc.broadcast(XMINMAP, (int)rc.getLocation().x);
+    	}
+    	if(rc.getLocation().x > rc.readBroadcast(XMAXMAP)) {
+    		rc.broadcast(XMINMAP, (int)rc.getLocation().x);
+    	}
+    	if(rc.getLocation().y < rc.readBroadcast(YMINMAP)) {
+    		rc.broadcast(YMINMAP, (int)rc.getLocation().y);
+    	}
+    	if(rc.getLocation().y > rc.readBroadcast(YMAXMAP)) {
+    		rc.broadcast(YMAXMAP, (int)rc.getLocation().y);
+    	}
     }
 }
