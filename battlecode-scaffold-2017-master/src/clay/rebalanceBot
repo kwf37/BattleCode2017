@@ -19,6 +19,7 @@ public strictfp class RobotPlayer {
 	static int SOLDIER_CHANNEL = 13;
 	static int GARDENER_X = 14;
 	static int GARDENER_Y = 15;
+	static int PLANTED_CHANNEL = 16;
 	//Max number of bots
 	static int GARDENER_MAX = 25;
 	static int SCOUT_MAX = 5;
@@ -67,7 +68,6 @@ public strictfp class RobotPlayer {
 	static void runArchon() throws GameActionException {
 		System.out.println("I'm an archon!");
 		Direction moveDirection = randomDirection();
-		
 		// The code you want your robot to perform every round should be in this loop
 		while (true) {
 
@@ -87,12 +87,14 @@ public strictfp class RobotPlayer {
 				Direction dir = randomDirection();
 
 				// Hire a gardener if enough slots in a random direction
-				if (robots.length == 0 && rc.readBroadcast(GARDENER_DISTRESS) == 0 && numGard < 1 && rc.getRoundNum()<50) {
+				if (robots.length == 0 && rc.readBroadcast(GARDENER_DISTRESS) == 0 && numGard < 1 && rc.getRoundNum()<50 && rc.readBroadcast(PLANTED_CHANNEL) == 0) {
 					rc.hireGardener(dir);
 					rc.broadcast(GARDENER_CHANNEL, numGard + 1);
-				} else if (robots.length == 0 && rc.readBroadcast(GARDENER_DISTRESS) == 0 && numGard < GARDENER_MAX && rc.canHireGardener(dir) && rc.getRoundNum() > 50) {
+					rc.broadcast(PLANTED_CHANNEL, 1);
+				} else if (robots.length == 0 && rc.readBroadcast(GARDENER_DISTRESS) == 0 && numGard < GARDENER_MAX && rc.canHireGardener(dir) && rc.getRoundNum() > 50 && rc.readBroadcast(PLANTED_CHANNEL) == 0) {
 					rc.hireGardener(dir);
 					rc.broadcast(GARDENER_CHANNEL, numGard + 1);
+					rc.broadcast(PLANTED_CHANNEL, 1);
 				}
 
 				//Move randomly or retreat
@@ -142,6 +144,7 @@ public strictfp class RobotPlayer {
 		Direction squaringDirection = spawningDirection.rotateRightDegrees(90);
 		spawningDirection = figureOutDirection();
 		boolean didIDistress = false;
+		boolean broadcastPlanted = false;
 		// The code you want your robot to perform every round should be in this loop
 		while (true) {
 
@@ -165,9 +168,16 @@ public strictfp class RobotPlayer {
 						tryMove(dir);
 					}
 				}
-				//If no nearby enemies and settled, plant trees around
+				//If no nearby enemies and settled and after 50 rounds, plant trees around
 				if (circleSpawn && robots.length==0 && settled && circleSpawn && rc.readBroadcast(GARDENER_DISTRESS) == 0 && rc.getRoundNum() > 50) {
-					tryPlantTree(directionToArchon.opposite(), 60, 2);
+					if(!tryPlantTree(directionToArchon.opposite(), 60, 2) && !broadcastPlanted) {
+						rc.broadcast(PLANTED_CHANNEL, 0);
+						broadcastPlanted = true;
+					}
+				}
+				//If low health, set broadcast to build a gardener
+				if(rc.getHealth()<10) {
+					rc.broadcast(PLANTED_CHANNEL, 0);
 				}
 				// Always try to water
 				tryWaterTree();
@@ -210,6 +220,8 @@ public strictfp class RobotPlayer {
 					tryBuildRobot(RobotType.TANK, directionToArchon);
 					rc.broadcast(PRODUCTIONCHANNEL, 0);
 				}
+				//If you have fully planted, let the archon know so it can produce more gardeners
+
 				
 				//Broadcast death if near death
 				if (!broadcastedDeath)
@@ -236,6 +248,10 @@ public strictfp class RobotPlayer {
 			try {
 				//Sense nearby robos
 				RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
+				//if nearby robots, trigger production from gardeners
+				if(robots.length > 0) {
+					rc.broadcast(PRODUCTIONCHANNEL, rc.readBroadcast(PRODUCTIONCHANNEL)+1);
+				}
 				//Establish location of broadcast
 				float xcoord = rc.readBroadcast(XCOORDENEMY);
 				float ycoord = rc.readBroadcast(YCOORDENEMY);
@@ -248,6 +264,9 @@ public strictfp class RobotPlayer {
 				if (rc.readBroadcast(GARDENER_DISTRESS)==1) {
 					rc.setIndicatorLine(rc.getLocation(), gardLoc, 0, 0, 0);
 					tryMoveToLoc(gardLoc);
+					if(rc.getLocation().isWithinDistance(gardLoc, 3) && robots.length==0) {
+						rc.broadcast(GARDENER_DISTRESS, 0);
+					}
 				}
 				//If broadcast says come, go there, otherwise if u sense enemies, broadcast andmove randomly
 				else if (rc.readBroadcast(SHOULDCOME) == COME) {
@@ -627,6 +646,9 @@ public strictfp class RobotPlayer {
 	 * 
 	 */
 	static boolean tryPlantTree(Direction dir, float degreeOffset, int checksPerSide) throws GameActionException {
+		if(rc.getTeamBullets() < 50) {
+			return true;
+		}
 		// First, try intended direction
 		if (rc.canPlantTree(dir)) {
 			rc.plantTree(dir);
