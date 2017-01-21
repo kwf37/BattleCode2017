@@ -176,7 +176,7 @@ public strictfp class RobotPlayer {
 					}
 				}
 				//If low health, set broadcast to build a gardener
-				if(rc.getHealth()<10) {
+				if(rc.getHealth()<15) {
 					rc.broadcast(PLANTED_CHANNEL, 0);
 				}
 				// Always try to water
@@ -268,6 +268,11 @@ public strictfp class RobotPlayer {
 						rc.broadcast(GARDENER_DISTRESS, 0);
 					}
 				}
+				//if nearby robots, trigger production from gardeners
+				if(robots.length > 0) {
+					rc.broadcast(PRODUCTIONCHANNEL, rc.readBroadcast(PRODUCTIONCHANNEL)+1);
+				}
+				
 				//If broadcast says come, go there, otherwise if u sense enemies, broadcast andmove randomly
 				else if (rc.readBroadcast(SHOULDCOME) == COME) {
 					goToDirectAvoidCollision(enemyLocation);
@@ -411,7 +416,7 @@ public strictfp class RobotPlayer {
 				//Targeting gardeners + scouts
 				RobotInfo gardenerToKill = null;
 				for (RobotInfo robot: robots) {
-					if (robot.getType()==RobotType.GARDENER||robot.getType() == RobotType.SCOUT) {
+					if (robot.getType()==RobotType.GARDENER) {
 						gardenerToKill = robot;
 						break;
 					}
@@ -505,6 +510,11 @@ public strictfp class RobotPlayer {
 
 				// See if there are any nearby enemy robots
 				RobotInfo[] robots = rc.senseNearbyRobots(-1, enemy);
+				
+				//Nearby trees in a super close vicinity
+				TreeInfo[] friendlyTrees = rc.senseNearbyTrees((float)2.5, rc.getTeam());
+				
+				
 				//Obtain broadcast location
 				int xcoord = rc.readBroadcast(XCOORDENEMY);
 				int ycoord = rc.readBroadcast(YCOORDENEMY);
@@ -514,15 +524,21 @@ public strictfp class RobotPlayer {
 				//Otherwise random explore
 				if(robots.length>0) {
 					strafeAndShoot(robots[0]);
-				} else if (rc.readBroadcast(SHOULDCOME)==COME) {
-					if(rc.canMove(broadcastLocation)) {
-						rc.move(broadcastLocation);
-					}else {
-						tryMoveToLoc(broadcastLocation);
+				} else if(friendlyTrees.length ==0){
+					if (rc.readBroadcast(SHOULDCOME)==COME) {
+						if(rc.canMove(broadcastLocation)) {
+							rc.move(broadcastLocation);
+						}else {
+							tryMoveToLoc(broadcastLocation);
+						}
+					} else if (!rc.hasMoved()) {
+						dir = dir.rotateRightDegrees((float)(Math.random()*180));
+						tryMove(dir);
 					}
-				} else if (!rc.hasMoved()) {
-					dir = dir.rotateRightDegrees((float)(Math.random()*180));
-					tryMove(dir);
+				} else {
+					if(rc.canMove(rc.getLocation().directionTo(friendlyTrees[0].getLocation()).opposite())) {
+						rc.move(rc.getLocation().directionTo(friendlyTrees[0].getLocation()).opposite());
+					}
 				}
 				
 				//If you are near broadcast Location and no nearby enemies, turn off the distress
@@ -868,7 +884,7 @@ public strictfp class RobotPlayer {
 		int randomIndex = (int)(Math.random()*nearbyTrees.length);
 		//System.out.println(randomIndex);
 		for (TreeInfo trees: nearbyTrees) {
-			if(rc.canShake(trees.getLocation()) && trees.getContainedBullets()>0) {
+			if(trees.getContainedBullets()>0) {
 				//System.out.println("shaking");
 				tryMoveToLoc(trees.getLocation());
 				rc.shake(trees.getLocation());
@@ -943,9 +959,9 @@ public strictfp class RobotPlayer {
 		Direction dir = rc.getLocation().directionTo(enemy.getLocation());
 		if (!rc.hasMoved()&& !tryMove(dir.rotateLeftDegrees(90)))
 			tryMove(dir.rotateRightDegrees(90));
-		if(rc.canFirePentadShot()&&rc.getTeamBullets()>150) {
+		if(rc.canFirePentadShot()) {
 			rc.firePentadShot(dir);
-		} else if (rc.canFireTriadShot() && rc.getTeamBullets() > 100) {
+		} else if (rc.canFireTriadShot()) {
 			rc.fireTriadShot(dir);
 		} else if (rc.canFireSingleShot()) {
 			rc.fireSingleShot(dir);
