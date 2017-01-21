@@ -358,7 +358,9 @@ public strictfp class RobotPlayer {
 				
 				// See if there are any enemy robots within striking range (distance 1 from lumberjack's radius)
 				RobotInfo[] robots = rc.senseNearbyRobots(RobotType.LUMBERJACK.bodyRadius+GameConstants.LUMBERJACK_STRIKE_RADIUS, enemy);
-
+				if(robots.length > 0) {
+					rc.broadcast(PRODUCTIONCHANNEL, rc.readBroadcast(PRODUCTIONCHANNEL)+1);
+				}
 				if(robots.length > 0 && !rc.hasAttacked()) {
 					// Use strike() to hit all nearby robots!
 					rc.strike();
@@ -420,6 +422,9 @@ public strictfp class RobotPlayer {
 						gardenerToKill = robot;
 						break;
 					}
+				}
+				if(robots.length > 0) {
+					rc.broadcast(PRODUCTIONCHANNEL, rc.readBroadcast(PRODUCTIONCHANNEL)+1);
 				}
 				//If gardener/scout nearby
 				if (gardenerToKill != null) {
@@ -959,11 +964,11 @@ public strictfp class RobotPlayer {
 		Direction dir = rc.getLocation().directionTo(enemy.getLocation());
 		if (!rc.hasMoved()&& !tryMove(dir.rotateLeftDegrees(90)))
 			tryMove(dir.rotateRightDegrees(90));
-		if(rc.canFirePentadShot()) {
+		if(rc.canFirePentadShot() && !checkFriendlyFire(enemy.getLocation(), 2)) {
 			rc.firePentadShot(dir);
-		} else if (rc.canFireTriadShot()) {
+		} else if (rc.canFireTriadShot() && !checkFriendlyFire(enemy.getLocation(), 1)){
 			rc.fireTriadShot(dir);
-		} else if (rc.canFireSingleShot()) {
+		} else if (rc.canFireSingleShot() && !checkFriendlyFire(enemy.getLocation(), 0)) {
 			rc.fireSingleShot(dir);
 		}
 	}
@@ -1115,5 +1120,43 @@ public strictfp class RobotPlayer {
     	if(rc.getLocation().y > rc.readBroadcast(YMAXMAP)) {
     		rc.broadcast(YMAXMAP, (int)rc.getLocation().y);
     	}
+    }
+    /**
+     * returns true if you are going to hit a friendly
+     * fireType 2 = Pentad
+     * fireType 1 = Tri
+     * fireType 0 = Single shot
+     * exclusive for soldiers
+     * @return
+     * @throws GameActionException
+     */
+    static boolean checkFriendlyFire(MapLocation enemy, int fireType) throws GameActionException {
+    	float distance = rc.getLocation().distanceTo(enemy);
+    	RobotInfo[] friendlyRobots = rc.senseNearbyRobots(distance, rc.getTeam());
+    	if(fireType == 2) {
+    		for(RobotInfo robot : friendlyRobots) {
+    			if(rc.getLocation().directionTo(robot.getLocation()).degreesBetween(rc.getLocation().directionTo(enemy)) < 30) {
+    				return true;
+    			}
+    		}
+    		return false;
+    	}
+    	if(fireType == 1) {
+    		for(RobotInfo robot : friendlyRobots) {
+    			if(rc.getLocation().directionTo(robot.getLocation()).degreesBetween(rc.getLocation().directionTo(enemy)) < 20) {
+    				return true;
+    			}
+    		}
+    		return false;
+    	}
+    	if(fireType == 0) {
+    		for(RobotInfo robot : friendlyRobots) {
+    			if(rc.getLocation().directionTo(robot.getLocation()).degreesBetween(rc.getLocation().directionTo(enemy)) < 5) {
+    				return true;
+    			}
+    		}
+    		return false;
+    	}
+    	return false;
     }
 }
